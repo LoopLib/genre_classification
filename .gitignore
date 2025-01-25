@@ -1,0 +1,14 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+
+# IPython checkpoints
+.ipynb_checkpoints/
+
+# Environment
+.env
+.python-version
+
+# Ignore fma_large and fma_small directories
+fma_large/
+fma_small/
