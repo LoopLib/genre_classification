@@ -213,4 +213,79 @@ def load_metadata_and_filter(metadata_dir="data/fma_metadata", subset="small"):
     # Return the resulting filtered DataFrame.
     return df
 
+###############################################################################
 
+# Main classification pipeline
+
+###############################################################################
+
+def main():
+    subset = "small"
+
+    print(f"Loading metadata for subset='{subset}'...")
+    df_tracks = load_metadata_and_filter(metadata_dir="data/fma_metadata", subset=subset)
+    print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
+
+    # Remove genres with fewer than 2 samples
+    counts = df_tracks["genre_top"].value_counts()
+    valid_genres = counts[counts >= 2].index
+    df_tracks = df_tracks[df_tracks["genre_top"].isin(valid_genres)]
+    print("After removing classes with <2 samples, we have:", df_tracks["genre_top"].value_counts())
+
+    # Reset the index to align with valid_indices later
+    df_tracks = df_tracks.reset_index(drop=True)
+
+    check_missing_files(df_tracks, track_dir="data/fma_small")
+
+    print("Extracting features...")
+    audio_dir = f"data/fma_{subset}"
+    X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
+
+    # Use valid_indices to filter df_tracks
+    df_tracks = df_tracks.iloc[valid_indices]
+    y = df_tracks["genre_top"].values
+
+    # If no features are extracted, exit gracefully
+    if len(X) == 0 or len(y) == 0:
+        print("No valid features or labels available. Exiting...")
+        return
+
+    # Ensure consistent sizes for X and y
+    if X.shape[0] != len(y):
+        print(f"Data size mismatch: X={X.shape[0]}, y={len(y)}. Exiting...")
+        return
+
+    label_enc = LabelEncoder()
+    y_encoded = label_enc.fit_transform(y)
+
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+    )
+
+    # Scale the features
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+
+    print("Training RandomForestClassifier...")
+    clf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+    clf.fit(X_train_scaled, y_train)
+
+    # Save the trained model
+    model_filename = "random_forest_genre_classifier.joblib"
+    dump(clf, model_filename)
+    print(f"Trained model saved to {model_filename}.")
+
+    print("Evaluating...")
+    y_pred = clf.predict(X_test_scaled)
+    print("Classification Report:")
+    print(classification_report(y_test, y_pred, target_names=label_enc.classes_))
+
+    print("Confusion Matrix:")
+    print(confusion_matrix(y_test, y_pred))
+
+    print("Done.")
+
+if __name__ == "__main__":
+    main()
