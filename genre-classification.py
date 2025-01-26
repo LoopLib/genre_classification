@@ -230,6 +230,9 @@ def main():
     df_tracks = load_metadata_and_filter(metadata_dir="data/fma_metadata", subset=subset)
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
+    # Only first 100 tracks for faster testing
+    df_tracks = df_tracks.head(100)
+
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
     valid_genres = counts[counts >= 2].index
@@ -270,12 +273,15 @@ def main():
         # Training set: 80% of the data, used to train the model
         # Test set: 20% of the data, used to evaluate the model's performance
     # Reference: https://realpython.com/train-test-split-python-data/
-    X_train, X_test, y_train, y_test = train_test_split(
-        # X - Feature dataset
-        # test_size = 0.2 - Specifies the proportion of the dataset to include in the test set (20%)
-        # random_state = 42 - Guarantees that the split will be the same every time code is run
-        X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+    X_train, X_test, y_train, y_test, df_train, df_test = train_test_split(
+        X,
+        y_encoded,
+        df_tracks,     # Keep track of DF rows
+        test_size=0.2,
+        random_state=42,
+        stratify=y_encoded
     )
+
 
     # Initializxe the scaler to standarize the features in dataset
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.preprocessing.StandardScaler.html
