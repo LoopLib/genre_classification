@@ -231,7 +231,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first 100 tracks for faster testing
-    df_tracks = df_tracks.head(100)
+    df_tracks = df_tracks.head(5000)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -276,12 +276,11 @@ def main():
     X_train, X_test, y_train, y_test, df_train, df_test = train_test_split(
         X,
         y_encoded,
-        df_tracks,     # Keep track of DF rows
+        df_tracks,    
         test_size=0.2,
         random_state=42,
         stratify=y_encoded
     )
-
 
     # Initializxe the scaler to standarize the features in dataset
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.preprocessing.StandardScaler.html
