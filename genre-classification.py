@@ -31,3 +31,8 @@ from tqdm import tqdm
 # For saving (dump) and loading (load) Python objects, e.g., trained models
 from joblib import dump, load  # Import joblib for model persistence
 
+###############################################################################
+
+# Silence certain user warning from librosa to keep the console output cleaner
+warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
+
