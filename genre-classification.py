@@ -339,6 +339,20 @@ def main():
     print("Confusion Matrix:")
     print(confusion_matrix(y_test, y_pred))
 
+    # === INVERSE TRANSFORM to get string labels ===
+    predicted_labels = label_enc.inverse_transform(y_pred)
+    actual_labels = label_enc.inverse_transform(y_test)
+
+    # === Store in df_test ===
+    df_test["predicted_genre"] = predicted_labels
+    df_test["actual_genre"] = actual_labels
+
+    # === Display each track's actual vs. predicted genre ===
+    print("\nSample of Test Predictions vs Actual:")
+    for idx, row in df_test.iterrows():
+        print(f"Path: {row['path']} | Actual: {row['actual_genre']} | Predicted: {row['predicted_genre']}")
+
+
     print("Done.")
 
 if __name__ == "__main__":
