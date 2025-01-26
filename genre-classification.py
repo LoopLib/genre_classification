@@ -220,56 +220,99 @@ def load_metadata_and_filter(metadata_dir="data/fma_metadata", subset="small"):
 ###############################################################################
 
 def main():
+
+    # Define the subset of the dataet to process (this project uses small and large)
     subset = "small"
 
     print(f"Loading metadata for subset='{subset}'...")
+
+    # Load metadata and filter for the chosen subset
     df_tracks = load_metadata_and_filter(metadata_dir="data/fma_metadata", subset=subset)
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
-    # Remove genres with fewer than 2 samples
+    # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
     valid_genres = counts[counts >= 2].index
     df_tracks = df_tracks[df_tracks["genre_top"].isin(valid_genres)]
     print("After removing classes with <2 samples, we have:", df_tracks["genre_top"].value_counts())
 
-    # Reset the index to align with valid_indices later
+    # Reset the index of DataFrame to ensure alignment with valid_indicies later
     df_tracks = df_tracks.reset_index(drop=True)
 
+    # Check for missing audio files and remove entries for missing data
     check_missing_files(df_tracks, track_dir="data/fma_small")
 
     print("Extracting features...")
+
+    # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
     X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
 
-    # Use valid_indices to filter df_tracks
+    # Use valid_indices to filter the original DataFrame to include only valid data
     df_tracks = df_tracks.iloc[valid_indices]
     y = df_tracks["genre_top"].values
 
-    # If no features are extracted, exit gracefully
+    # Handle cases where no features or lables are extracted
     if len(X) == 0 or len(y) == 0:
         print("No valid features or labels available. Exiting...")
         return
 
-    # Ensure consistent sizes for X and y
+    # Ensure consistent sizes for feature matrix X and label vector y
     if X.shape[0] != len(y):
         print(f"Data size mismatch: X={X.shape[0]}, y={len(y)}. Exiting...")
         return
 
+    # Encode genre labels into integers for classification 
     label_enc = LabelEncoder()
     y_encoded = label_enc.fit_transform(y)
 
     # Split the data into training and testing sets
+        # Training set: 80% of the data, used to train the model
+        # Test set: 20% of the data, used to evaluate the model's performance
+    # Reference: https://realpython.com/train-test-split-python-data/
     X_train, X_test, y_train, y_test = train_test_split(
+        # X - Feature dataset
+        # test_size = 0.2 - Specifies the proportion of the dataset to include in the test set (20%)
+        # random_state = 42 - Guarantees that the split will be the same every time code is run
         X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
     )
 
-    # Scale the features
+    # Initializxe the scaler to standarize the features in dataset
+    # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.preprocessing.StandardScaler.html
     scaler = StandardScaler()
+
+    # fit_transform
+        # fit - Computes the mean and standard deviation of each feature from the training data
+        # transform - Scales the training data using the computed mean and standard deviation
+    # The result contains the scaled versiom of the training data (X_train_scaled)
     X_train_scaled = scaler.fit_transform(X_train)
+
+    # transform - Uses the same mean and standard deviation computed from the training data
+    # to scale the test data (X_test)
+    # This ensures consistency between training and test data
     X_test_scaled = scaler.transform(X_test)
 
     print("Training RandomForestClassifier...")
+
+    # Create an instance of a Random Forest classifier
+    # Uses mutiple decision trees to perform classification tasks
+    # n_estimators
+        # The number of trees in the forest
+        # The higher the number of trees, the better the model performance
+    # random_state
+        # Sets a seed for random number generatio to ensure reproducibility of results
+        # Ensures consistent results when the code is run mutiple times
+    # n_jobs
+        # Allowing classifier to use all avaiavle CPU cores for parallel computation,
+        # speeding up the training process
+    # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
     clf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+
+    # Fits the Random Forest model using provided training data
+    # X_train_scaled
+        # Represents the scaled features of the training dataset
+    # y_train
+        # Represents the target labels for the training data.
     clf.fit(X_train_scaled, y_train)
 
     # Save the trained model
@@ -278,10 +321,15 @@ def main():
     print(f"Trained model saved to {model_filename}.")
 
     print("Evaluating...")
+
+    # Genre predictions on the test set
     y_pred = clf.predict(X_test_scaled)
+
+    # Print classification metrics
     print("Classification Report:")
     print(classification_report(y_test, y_pred, target_names=label_enc.classes_))
 
+    # Print confusion matric to evaluate the classifier performance
     print("Confusion Matrix:")
     print(confusion_matrix(y_test, y_pred))
 
