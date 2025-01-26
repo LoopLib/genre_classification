@@ -135,4 +135,40 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
     # Convert features list to a 2D NumPy array
     return np.array(features_list), valid_indices
 
+def check_missing_files(df, track_dir="data/fma_small"):
+    """
+    Check for missing audio files based on the metadata DataFrame.
+    Args:
+        df (pd.DataFrame): Metadata DataFrame with a 'path' column.
+        track_dir (str): Directory containing the audio files.
+    Returns:
+        None
+    """
+    # Initialize an empty list to keep track of missing files
+    missing_files = []
+
+    # Iterate over each path in the path column of the DataFrame
+    for path in df["path"]:
+
+        # Construct the full file path by combining the directory and file path
+        filepath = os.path.join(track_dir, path)
+
+        # Check if the file does not exist at the specified path
+        if not os.path.isfile(filepath):
+            # If file is missing add to the list of missing files
+            missing_files.append(filepath)
+
+    # Check if there is any missing files
+    if missing_files:
+        # Print the total count of missing files
+        print(f"Missing files: {len(missing_files)}")
+
+        # Display the first 10 missing files for review
+        for file in missing_files[:10]:  
+            print(file)
+    else:
+        # If no missing files, print confirmation message
+        print("All files are present.")
+
+
 
