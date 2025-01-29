@@ -129,6 +129,11 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             spectral_centroid_mean = np.mean(spectral_centroid)
             spectral_centroid_std = np.std(spectral_centroid)
 
+            # Spectral Bandwidth
+            spectral_bw = librosa.feature.spectral_bandwidth(y=y, sr=sr)
+            spectral_bw_mean = np.mean(spectral_bw)
+            spectral_bw_std = np.std(spectral_bw)
+
 
             # ============= Combine All Features Into One Row =============
             # Horizontally concatenates two 1D arrays: mfcc_mean and mfcc_std
@@ -139,6 +144,7 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 delta_mfcc_mean, delta_mfcc_std,
                 rms_mean, rms_std,
                 spectral_centroid_mean, spectral_centroid_std,
+                spectral_bw_mean, spectral_bw_std,
             ))
 
             # Append the feature row to the list of extracted features
