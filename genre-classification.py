@@ -134,6 +134,10 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             spectral_bw_mean = np.mean(spectral_bw)
             spectral_bw_std = np.std(spectral_bw)
 
+            # Zero Crossing Rate
+            zcr = librosa.feature.zero_crossing_rate(y)
+            zcr_mean = np.mean(zcr)
+            zcr_std = np.std(zcr)
 
             # ============= Combine All Features Into One Row =============
             # Horizontally concatenates two 1D arrays: mfcc_mean and mfcc_std
