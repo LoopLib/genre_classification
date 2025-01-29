@@ -324,8 +324,12 @@ def main():
     # n_jobs
         # Allowing classifier to use all avaiavle CPU cores for parallel computation,
         # speeding up the training process
+    # class_weight = "balanced"
+        # Adjusts the weights of the classes to balance the dataset
+        # Helps to improve the model's performance on imbalanced datasets
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-    clf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
+    clf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1, class_weight="balanced")
+
 
     # Fits the Random Forest model using provided training data
     # X_train_scaled
