@@ -89,7 +89,7 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 print(f"Skipping empty file: {filename}")
                 continue
             
-            # MEAN AND STANDARD DEVIATION OF MFCCS
+            # ============= Basic MFCC Features =============
             # Compute Mel-frequency cepstral coefficients (MFCCs) from the audio
             # Input Audio Signal (y) 
                 # The raw audio waveform (as a 1D NumPy array) that the function will 
@@ -123,11 +123,23 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             rms_mean = np.mean(rms)
             rms_std = np.std(rms)
 
+            # ============= Spectral Features =============
+            # Spectral Centroid
+            spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
+            spectral_centroid_mean = np.mean(spectral_centroid)
+            spectral_centroid_std = np.std(spectral_centroid)
+
+
+            # ============= Combine All Features Into One Row =============
             # Horizontally concatenates two 1D arrays: mfcc_mean and mfcc_std
             # Reference: https://numpy.org/doc/stable/reference/generated/numpy.hstack.html
             #            https://stackoverflow.com/questions/60907414/how-to-properly-use-numpy-hstack
-            
-            feature_row = np.hstack((mfcc_mean, mfcc_std, delta_mfcc_mean, delta_mfcc_std, rms_mean, rms_std))
+            feature_row = np.hstack((
+                mfcc_mean, mfcc_std,
+                delta_mfcc_mean, delta_mfcc_std,
+                rms_mean, rms_std,
+                spectral_centroid_mean, spectral_centroid_std,
+            ))
 
             # Append the feature row to the list of extracted features
                 # Each row corresponds to a single track
