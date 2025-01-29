@@ -77,7 +77,12 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 # removes stereo and multi-channel information
             # Mono is set to True to convert the audio to mono (average channels)
             # Reference: https://librosa.org/doc/main/generated/librosa.load.html
-            y, sr = librosa.load(filename, sr=None, mono=True)
+            try:
+                y, sr = librosa.load(filename, sr=None, mono=True)
+            except Exception as e:
+                print(f"Error loading file {filename}: {e}")
+                continue
+
 
             # Skip silent or empty files
             if y is None or len(y) == 0:
