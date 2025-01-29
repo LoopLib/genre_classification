@@ -264,6 +264,9 @@ def main():
     audio_dir = f"data/fma_{subset}"
     X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
 
+    # Remove rows with missing values before filtering based on valid indices
+    df_tracks.dropna(inplace=True)
+
     # Use valid_indices to filter the original DataFrame to include only valid data
     df_tracks = df_tracks.iloc[valid_indices]
     y = df_tracks["genre_top"].values
