@@ -266,7 +266,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(1000)
+    df_tracks = df_tracks.head(100)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -279,8 +279,6 @@ def main():
 
     # Check for missing audio files and remove entries for missing data
     check_missing_files(df_tracks, track_dir="data/fma_small")
-
-    print("Extracting features...")
 
     # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
@@ -355,7 +353,6 @@ def main():
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
     clf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1, class_weight="balanced")
 
-
     # Fits the Random Forest model using provided training data
     # X_train_scaled
         # Represents the scaled features of the training dataset
@@ -389,13 +386,12 @@ def main():
     df_test["predicted_genre"] = predicted_labels
     df_test["actual_genre"] = actual_labels
 
-    # === Display each track's actual vs. predicted genre ===
-    print("\nSample of Test Predictions vs Actual:")
-    for idx, row in df_test.iterrows():
-        print(f"Path: {row['path']} | Actual: {row['actual_genre']} | Predicted: {row['predicted_genre']}")
-
-
-    print("Done.")
+   # === Display each track's actual vs. predicted genre ===
+    with open("predictions.txt", "w") as file:
+        file.write("\nSample of Test Predictions vs Actual:\n")
+        for idx, row in df_test.iterrows():
+            file.write(f"Path: {row['path']} | Actual: {row['actual_genre']} | Predicted: {row['predicted_genre']}\n")
+        print("Done.")
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,22 @@
+
+Sample of Test Predictions vs Actual:
+Path: 001\001682.mp3 | Actual: International | Predicted: International
+Path: 001\001666.mp3 | Actual: Pop | Predicted: International
+Path: 000\000141.mp3 | Actual: Folk | Predicted: Folk
+Path: 000\000255.mp3 | Actual: Rock | Predicted: Folk
+Path: 000\000890.mp3 | Actual: Folk | Predicted: Experimental
+Path: 000\000140.mp3 | Actual: Folk | Predicted: Experimental
+Path: 000\000715.mp3 | Actual: Folk | Predicted: Folk
+Path: 001\001087.mp3 | Actual: Rock | Predicted: Rock
+Path: 001\001276.mp3 | Actual: Experimental | Predicted: Rock
+Path: 001\001075.mp3 | Actual: Experimental | Predicted: Experimental
+Path: 000\000211.mp3 | Actual: Folk | Predicted: Folk
+Path: 001\001417.mp3 | Actual: Rock | Predicted: Experimental
+Path: 000\000998.mp3 | Actual: Experimental | Predicted: Experimental
+Path: 001\001193.mp3 | Actual: Folk | Predicted: Folk
+Path: 001\001066.mp3 | Actual: Experimental | Predicted: Folk
+Path: 001\001681.mp3 | Actual: International | Predicted: International
+Path: 000\000213.mp3 | Actual: Pop | Predicted: Folk
+Path: 000\000714.mp3 | Actual: Folk | Predicted: Folk
+Path: 000\000708.mp3 | Actual: International | Predicted: International
+Path: 000\000695.mp3 | Actual: Hip-Hop | Predicted: International
