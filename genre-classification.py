@@ -110,11 +110,19 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             # of the audio signal
             mfcc_std = np.std(mfcc, axis=1)
 
+            delta_mfcc = librosa.feature.delta(mfcc)  # First-order derivative
+            delta_mfcc_mean = np.mean(delta_mfcc, axis=1)
+            delta_mfcc_std = np.std(delta_mfcc, axis=1)
+
+            rms = librosa.feature.rms(y=y)  # Energy feature
+            rms_mean = np.mean(rms)
+            rms_std = np.std(rms)
+
             # Horizontally concatenates two 1D arrays: mfcc_mean and mfcc_std
             # Reference: https://numpy.org/doc/stable/reference/generated/numpy.hstack.html
             #            https://stackoverflow.com/questions/60907414/how-to-properly-use-numpy-hstack
             
-            feature_row = np.hstack((mfcc_mean, mfcc_std))
+            feature_row = np.hstack((mfcc_mean, mfcc_std, delta_mfcc_mean, delta_mfcc_std, rms_mean, rms_std))
 
             # Append the feature row to the list of extracted features
                 # Each row corresponds to a single track
@@ -230,8 +238,8 @@ def main():
     df_tracks = load_metadata_and_filter(metadata_dir="data/fma_metadata", subset=subset)
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
-    # Only first 100 tracks for faster testing
-    df_tracks = df_tracks.head(5000)
+    # Only first X tracks for faster testing
+    df_tracks = df_tracks.head(1000)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -274,12 +282,13 @@ def main():
         # Test set: 20% of the data, used to evaluate the model's performance
     # Reference: https://realpython.com/train-test-split-python-data/
     X_train, X_test, y_train, y_test, df_train, df_test = train_test_split(
-        X,
-        y_encoded,
-        df_tracks,    
-        test_size=0.2,
-        random_state=42,
-        stratify=y_encoded
+        X,                      # Features
+        y_encoded,              # Labels
+        df_tracks,              # DataFrame with metadata
+        test_size=0.2,          # 20% of the data is used for testing
+        random_state=42,        # Set a seed for random number generation
+        stratify=y_encoded      # Ensures that the distribution of classes is 
+                                # similar in both training and test sets
     )
 
     # Initializxe the scaler to standarize the features in dataset
