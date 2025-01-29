@@ -115,32 +115,45 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             # of the audio signal
             mfcc_std = np.std(mfcc, axis=1)
 
-            delta_mfcc = librosa.feature.delta(mfcc)  # First-order derivative
+            # Calculate the first-order delta of MFCCs (how MFCCS changes over time)
+            delta_mfcc = librosa.feature.delta(mfcc) 
+            # Compute the mean of delta MFCCs accors time for each coefficient
             delta_mfcc_mean = np.mean(delta_mfcc, axis=1)
+            # Compute the mean of delta MFCCs accors time for each coefficient
             delta_mfcc_std = np.std(delta_mfcc, axis=1)
 
-            rms = librosa.feature.rms(y=y)  # Energy feature
+            # Compute the root-mean-square (RMS) energy of the signal, which measures signal amplitude
+            rms = librosa.feature.rms(y=y)  
+            # Mean RMS value across all frames
             rms_mean = np.mean(rms)
+            # Standard deviation of RMS values across all frames
             rms_std = np.std(rms)
 
             # ============= Spectral Features =============
-            # Spectral Centroid
+
+            # Spectral Centroid: indicates the "center of mass" of the spectrum
             spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
+            # Mean spectral centroid across all frames
             spectral_centroid_mean = np.mean(spectral_centroid)
+            # Standard deviation of the spectral centroid
             spectral_centroid_std = np.std(spectral_centroid)
 
-            # Spectral Bandwidth
+            # Spectral Bandwidth: measures the spread (bandwidth) of the frequencies around the centroid
             spectral_bw = librosa.feature.spectral_bandwidth(y=y, sr=sr)
+            # Mean spectral bandwidth
             spectral_bw_mean = np.mean(spectral_bw)
+            # Standard deviation of the spectral bandwidth
             spectral_bw_std = np.std(spectral_bw)
 
-            # Zero Crossing Rate
+            # Zero Crossing Rate (ZCR): counts how often the signal crosses the zero amplitude axis
             zcr = librosa.feature.zero_crossing_rate(y)
+            # Mean zero crossing rate
             zcr_mean = np.mean(zcr)
+            # Standard deviation of the zero crossing rate
             zcr_std = np.std(zcr)
 
             # ============= Combine All Features Into One Row =============
-            # Horizontally concatenates two 1D arrays: mfcc_mean and mfcc_std
+            # Horizontally concatenates 1D arrays into a single 1D array
             # Reference: https://numpy.org/doc/stable/reference/generated/numpy.hstack.html
             #            https://stackoverflow.com/questions/60907414/how-to-properly-use-numpy-hstack
             feature_row = np.hstack((
@@ -149,6 +162,7 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 rms_mean, rms_std,
                 spectral_centroid_mean, spectral_centroid_std,
                 spectral_bw_mean, spectral_bw_std,
+                zcr_mean, zcr_std
             ))
 
             # Append the feature row to the list of extracted features
@@ -266,7 +280,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(100)
+    # df_tracks = df_tracks.head(100)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
