@@ -82,8 +82,6 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             except Exception as e:
                 print(f"Error loading file {filename}: {e}")
                 continue
-
-
             # Skip silent or empty files
             if y is None or len(y) == 0:
                 print(f"Skipping empty file: {filename}")
@@ -152,17 +150,32 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             # Standard deviation of the zero crossing rate
             zcr_std = np.std(zcr)
 
+            mfcc_dd = librosa.feature.delta(mfcc, order=2)  # delta-delta
+            mfcc_dd_mean = np.mean(mfcc_dd, axis=1)
+            mfcc_dd_std = np.std(mfcc_dd, axis=1)
+
+            spec_rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)
+            spec_rolloff_mean = np.mean(spec_rolloff)
+            spec_rolloff_std = np.std(spec_rolloff)
+
+            spec_contrast = librosa.feature.spectral_contrast(y=y, sr=sr)
+            spec_contrast_mean = np.mean(spec_contrast, axis=1)
+            spec_contrast_std = np.std(spec_contrast, axis=1)
+
             # ============= Combine All Features Into One Row =============
             # Horizontally concatenates 1D arrays into a single 1D array
             # Reference: https://numpy.org/doc/stable/reference/generated/numpy.hstack.html
             #            https://stackoverflow.com/questions/60907414/how-to-properly-use-numpy-hstack
             feature_row = np.hstack((
-                mfcc_mean, mfcc_std,
-                delta_mfcc_mean, delta_mfcc_std,
-                rms_mean, rms_std,
-                spectral_centroid_mean, spectral_centroid_std,
-                spectral_bw_mean, spectral_bw_std,
-                zcr_mean, zcr_std
+            mfcc_mean, mfcc_std,
+            delta_mfcc_mean, delta_mfcc_std,
+            mfcc_dd_mean, mfcc_dd_std,
+            rms_mean, rms_std,
+            spectral_centroid_mean, spectral_centroid_std,
+            spectral_bw_mean, spectral_bw_std,
+            zcr_mean, zcr_std,
+            spec_rolloff_mean, spec_rolloff_std,
+            spec_contrast_mean, spec_contrast_std
             ))
 
             # Append the feature row to the list of extracted features
@@ -264,7 +277,7 @@ def load_metadata_and_filter(metadata_dir="data/fma_metadata", subset="small"):
 
 ###############################################################################
 
-# Main classification pipeline
+# Main classification
 
 ###############################################################################
 
@@ -280,7 +293,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    # df_tracks = df_tracks.head(100)
+    df_tracks = df_tracks.head(100)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -365,7 +378,7 @@ def main():
         # Adjusts the weights of the classes to balance the dataset
         # Helps to improve the model's performance on imbalanced datasets
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-    clf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1, class_weight="balanced")
+    clf = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1, class_weight="balanced")
 
     # Fits the Random Forest model using provided training data
     # X_train_scaled
