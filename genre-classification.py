@@ -128,7 +128,6 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             rms_std = np.std(rms)
 
             # ============= Spectral Features =============
-
             # Spectral Centroid: indicates the "center of mass" of the spectrum
             spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
             # Mean spectral centroid across all frames
@@ -293,13 +292,16 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(100)
+    df_tracks = df_tracks.head(300)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
     valid_genres = counts[counts >= 2].index
     df_tracks = df_tracks[df_tracks["genre_top"].isin(valid_genres)]
     print("After removing classes with <2 samples, we have:", df_tracks["genre_top"].value_counts())
+
+    # Reset the index of DataFrame to ensure alignment with valid_indicies later
+    df_tracks = df_tracks.reset_index(drop=True)
 
     # Reset the index of DataFrame to ensure alignment with valid_indicies later
     df_tracks = df_tracks.reset_index(drop=True)
@@ -336,14 +338,27 @@ def main():
         # Training set: 80% of the data, used to train the model
         # Test set: 20% of the data, used to evaluate the model's performance
     # Reference: https://realpython.com/train-test-split-python-data/
-    X_train, X_test, y_train, y_test, df_train, df_test = train_test_split(
+    # Split the data into 70% training, 20% validation, and 10% test
+    # First, we split into 70% training and 30% temporary set (which we will split further into validation and test)
+    X_train, X_temp, y_train, y_temp, df_train, df_temp = train_test_split(
         X,                      # Features
         y_encoded,              # Labels
         df_tracks,              # DataFrame with metadata
-        test_size=0.2,          # 20% of the data is used for testing
+        test_size=0.3,          # 30% of the data is used for temporary validation+test split
         random_state=42,        # Set a seed for random number generation
         stratify=y_encoded      # Ensures that the distribution of classes is 
-                                # similar in both training and test sets
+                                # similar in both training and temp sets
+    )
+
+    # Now split the temporary set (30%) into validation (20%) and test (10%) sets
+    X_val, X_test, y_val, y_test, df_val, df_test = train_test_split(
+        X_temp,                 # Temporary features (30%)
+        y_temp,                 # Temporary labels (30%)
+        df_temp,                # Temporary metadata (30%)
+        test_size=0.33,         # 33% of the temporary data for the test set (approximately 10% of total data)
+        random_state=42,        # Set a seed for random number generation
+        stratify=y_temp         # Ensures that the distribution of classes is 
+                                # similar in both validation and test sets
     )
 
     # Initializxe the scaler to standarize the features in dataset
