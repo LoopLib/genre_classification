@@ -31,6 +31,8 @@ from tqdm import tqdm
 # For saving (dump) and loading (load) Python objects, e.g., trained models
 from joblib import dump, load  # Import joblib for model persistence
 
+from sklearn.model_selection import GridSearchCV
+
 ###############################################################################
 
 # Silence certain user warning from librosa to keep the console output cleaner
@@ -176,7 +178,12 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
 
             # --- Tempo ---
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-
+            # Ensure tempo is a scalar float (avoids 2D array issues)
+            try:
+                tempo = float(tempo)
+            except Exception as e:
+                print(f"Error converting tempo to float for file: {filename} - {e}")
+                tempo = 0.0
 
             # ============= Combine All Features Into One Row =============
             # Horizontally concatenates 1D arrays into a single 1D array
@@ -312,7 +319,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(1000)
+    df_tracks = df_tracks.head(300)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -396,7 +403,15 @@ def main():
     # This ensures consistency between training and test data
     X_test_scaled = scaler.transform(X_test)
 
-    print("Training RandomForestClassifier...")
+    print("Starting GridSearchCV for RandomForestClassifier...")
+
+    # Define the parameter grid for hyperparameter tuning
+    param_grid = {
+        'n_estimators': [100, 200, 300],
+        'max_depth': [None, 10, 20, 30],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4]
+    }
 
     # Create an instance of a Random Forest classifier
     # Uses mutiple decision trees to perform classification tasks
@@ -413,24 +428,36 @@ def main():
         # Adjusts the weights of the classes to balance the dataset
         # Helps to improve the model's performance on imbalanced datasets
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-    clf = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1, class_weight="balanced")
+    base_clf = RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced")
 
-    # Fits the Random Forest model using provided training data
-    # X_train_scaled
-        # Represents the scaled features of the training dataset
-    # y_train
-        # Represents the target labels for the training data.
-    clf.fit(X_train_scaled, y_train)
+    # Set up GridSearchCV with 3-fold cross-validation
+    grid_search = GridSearchCV(
+        estimator=base_clf,
+        param_grid=param_grid,
+        cv=3,
+        scoring='accuracy',
+        n_jobs=-1,
+        verbose=2
+    )
+
+    # Perform grid search on the training data
+    grid_search.fit(X_train_scaled, y_train)
+
+    print("Best parameters found:", grid_search.best_params_)
+    print("Best cross-validation accuracy: {:.2f}%".format(grid_search.best_score_ * 100))
+
+    # Retrieve the best estimator from grid search
+    best_clf = grid_search.best_estimator_
 
     # Save the trained model
     model_filename = "random_forest_genre_classifier.joblib"
-    dump(clf, model_filename)
+    dump(best_clf, model_filename)
     print(f"Trained model saved to {model_filename}.")
 
     print("Evaluating...")
 
     # Genre predictions on the test set
-    y_pred = clf.predict(X_test_scaled)
+    y_pred = best_clf.predict(X_test_scaled)
 
     # Print classification metrics
     print("Classification Report:")
