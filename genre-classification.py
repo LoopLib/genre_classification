@@ -103,11 +103,11 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             # Reference: https://librosa.org/doc/main/generated/librosa.feature.mfcc.html
             mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc)
 
+            # --- MFCC and its derivatives ---
             # This operation computes the time varying MFCC features into a single representative 
             # value (mean) for each coefficient
             # Output is a 1D array of shape (n_mfcc,)
             mfcc_mean = np.mean(mfcc, axis=1)
-
             # Computes standard deviation of the Mel-frequncy cepstral coefficients accross time
             # Used to quantify how much variation exists in each MFCC coefficient over duration
             # of the audio signal
@@ -120,6 +120,7 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             # Compute the mean of delta MFCCs accors time for each coefficient
             delta_mfcc_std = np.std(delta_mfcc, axis=1)
 
+            # ============= RMS Energy =============
             # Compute the root-mean-square (RMS) energy of the signal, which measures signal amplitude
             rms = librosa.feature.rms(y=y)  
             # Mean RMS value across all frames
@@ -161,20 +162,39 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             spec_contrast_mean = np.mean(spec_contrast, axis=1)
             spec_contrast_std = np.std(spec_contrast, axis=1)
 
+             # --- Chroma Features ---
+            chroma = librosa.feature.chroma_stft(y=y, sr=sr)
+            chroma_mean = np.mean(chroma, axis=1)
+            chroma_std = np.std(chroma, axis=1)
+
+            # --- Tonnetz Features ---
+            # Tonnetz extraction requires a harmonic signal
+            y_harmonic = librosa.effects.harmonic(y)
+            tonnetz = librosa.feature.tonnetz(y=y_harmonic, sr=sr)
+            tonnetz_mean = np.mean(tonnetz, axis=1)
+            tonnetz_std = np.std(tonnetz, axis=1)
+
+            # --- Tempo ---
+            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+
+
             # ============= Combine All Features Into One Row =============
             # Horizontally concatenates 1D arrays into a single 1D array
             # Reference: https://numpy.org/doc/stable/reference/generated/numpy.hstack.html
             #            https://stackoverflow.com/questions/60907414/how-to-properly-use-numpy-hstack
             feature_row = np.hstack((
-            mfcc_mean, mfcc_std,
-            delta_mfcc_mean, delta_mfcc_std,
-            mfcc_dd_mean, mfcc_dd_std,
-            rms_mean, rms_std,
-            spectral_centroid_mean, spectral_centroid_std,
-            spectral_bw_mean, spectral_bw_std,
-            zcr_mean, zcr_std,
-            spec_rolloff_mean, spec_rolloff_std,
-            spec_contrast_mean, spec_contrast_std
+                mfcc_mean, mfcc_std,
+                delta_mfcc_mean, delta_mfcc_std,
+                mfcc_dd_mean, mfcc_dd_std,
+                [rms_mean, rms_std],
+                [spectral_centroid_mean, spectral_centroid_std],
+                [spectral_bw_mean, spectral_bw_std],
+                [zcr_mean, zcr_std],
+                [spec_rolloff_mean, spec_rolloff_std],
+                spec_contrast_mean, spec_contrast_std,
+                chroma_mean, chroma_std,
+                tonnetz_mean, tonnetz_std,
+                [tempo]
             ))
 
             # Append the feature row to the list of extracted features
@@ -292,7 +312,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(300)
+    df_tracks = df_tracks.head(1000)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
