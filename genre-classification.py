@@ -33,6 +33,8 @@ from joblib import dump, load  # Import joblib for model persistence
 
 from sklearn.model_selection import GridSearchCV
 
+from imblearn.over_sampling import SMOTE
+
 ###############################################################################
 
 # Silence certain user warning from librosa to keep the console output cleaner
@@ -103,7 +105,7 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 # Rows = Number of MFCCs (n_mfcc)
                 # Columns = Number of frames in the audio file
             # Reference: https://librosa.org/doc/main/generated/librosa.feature.mfcc.html
-            mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc)
+            mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
 
             # --- MFCC and its derivatives ---
             # This operation computes the time varying MFCC features into a single representative 
@@ -180,7 +182,7 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
             # Ensure tempo is a scalar float (avoids 2D array issues)
             try:
-                tempo = float(tempo)
+                tempo = float(tempo[0]) if isinstance(tempo, np.ndarray) else float(tempo)
             except Exception as e:
                 print(f"Error converting tempo to float for file: {filename} - {e}")
                 tempo = 0.0
@@ -319,7 +321,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(300)
+    df_tracks = df_tracks.head(500)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -440,8 +442,21 @@ def main():
         verbose=2
     )
 
-    # Perform grid search on the training data
-    grid_search.fit(X_train_scaled, y_train)
+    # Determine the maximum number of neighbors possible
+    min_class_samples = min(pd.Series(y_train).value_counts())
+    if min_class_samples <= 1:
+        print("Not enough samples for SMOTE. Exiting...")
+        return
+    k_neighbors = min(5, min_class_samples - 1)  # Ensure k_neighbors is not greater than available samples
+
+    # Apply SMOTE with adjusted k_neighbors
+    smote = SMOTE(random_state=42, k_neighbors=k_neighbors)
+    X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+
+    print("SMOTE applied. New training set distribution:")
+    print(pd.Series(y_train_balanced).value_counts())
+    # Perform grid search on the balanced training data
+    grid_search.fit(X_train_balanced, y_train_balanced)
 
     print("Best parameters found:", grid_search.best_params_)
     print("Best cross-validation accuracy: {:.2f}%".format(grid_search.best_score_ * 100))
