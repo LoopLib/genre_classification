@@ -36,6 +36,9 @@ from sklearn.model_selection import GridSearchCV
 from imblearn.over_sampling import SMOTE
 
 import threadpoolctl
+
+from sklearn.preprocessing import RobustScaler
+
 # Limit the number of threads used by BLAS (used by libraries like numpy and scipy)
 threadpoolctl.threadpool_limits(limits=4, user_api='blas')
 
@@ -325,7 +328,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    #df_tracks = df_tracks.head(300)
+    df_tracks = df_tracks.head(100)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -396,7 +399,7 @@ def main():
 
     # Initializxe the scaler to standarize the features in dataset
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.preprocessing.StandardScaler.html
-    scaler = StandardScaler()
+    scaler = RobustScaler()
 
     # fit_transform
         # fit - Computes the mean and standard deviation of each feature from the training data
@@ -409,15 +412,20 @@ def main():
     # This ensures consistency between training and test data
     X_test_scaled = scaler.transform(X_test)
 
+    X_val_scaled = scaler.transform(X_val)
+
     print("Starting GridSearchCV for RandomForestClassifier...")
 
     # Define the parameter grid for hyperparameter tuning
     param_grid = {
-        'n_estimators': [100, 200, 300],
-        'max_depth': [None, 10, 20, 30],
+        'n_estimators': [100, 300, 500],
+        'max_depth': [None, 10, 30, 50],
         'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4]
+        'min_samples_leaf': [1, 2, 4],
+        'max_features': ['sqrt', 'log2'],
+        'bootstrap': [True, False]
     }
+
 
     # Create an instance of a Random Forest classifier
     # Uses mutiple decision trees to perform classification tasks
@@ -464,8 +472,9 @@ def main():
         y_train = y_train[mask]
 
     # Apply SMOTE with adjusted k_neighbors
-    smote = SMOTE(random_state=42, k_neighbors=k_neighbors)
+    smote = SMOTE(sampling_strategy="auto", random_state=42, k_neighbors=min(5, min_class_samples - 1))
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
+
 
     print("SMOTE applied successfully.")
 
