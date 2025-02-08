@@ -35,6 +35,10 @@ from sklearn.model_selection import GridSearchCV
 
 from imblearn.over_sampling import SMOTE
 
+import threadpoolctl
+# Limit the number of threads used by BLAS (used by libraries like numpy and scipy)
+threadpoolctl.threadpool_limits(limits=4, user_api='blas')
+
 ###############################################################################
 
 # Silence certain user warning from librosa to keep the console output cleaner
@@ -321,7 +325,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(500)
+    #df_tracks = df_tracks.head(300)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -438,22 +442,33 @@ def main():
         param_grid=param_grid,
         cv=3,
         scoring='accuracy',
-        n_jobs=-1,
+        n_jobs=1,  # Temporarily disable parallelism (set n_jobs=1)
         verbose=2
     )
 
-    # Determine the maximum number of neighbors possible
-    min_class_samples = min(pd.Series(y_train).value_counts())
+    # Check class distribution
+    class_counts = pd.Series(y_train).value_counts()
+    min_class_samples = class_counts.min()
+
     if min_class_samples <= 1:
-        print("Not enough samples for SMOTE. Exiting...")
+        print(f"Not enough samples for SMOTE (Minimum class samples: {min_class_samples}). Exiting...")
         return
-    k_neighbors = min(5, min_class_samples - 1)  # Ensure k_neighbors is not greater than available samples
+
+    k_neighbors = min(5, min_class_samples - 1)
+
+    # Check for NaN or Infinite values before applying SMOTE
+    if np.isnan(X_train_scaled).any() or np.isinf(X_train_scaled).any():
+        print("NaN or infinite values detected. Removing problematic samples.")
+        mask = ~np.isnan(X_train_scaled).any(axis=1) & ~np.isinf(X_train_scaled).any(axis=1)
+        X_train_scaled = X_train_scaled[mask]
+        y_train = y_train[mask]
 
     # Apply SMOTE with adjusted k_neighbors
     smote = SMOTE(random_state=42, k_neighbors=k_neighbors)
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
-    print("SMOTE applied. New training set distribution:")
+    print("SMOTE applied successfully.")
+
     print(pd.Series(y_train_balanced).value_counts())
     # Perform grid search on the balanced training data
     grid_search.fit(X_train_balanced, y_train_balanced)
