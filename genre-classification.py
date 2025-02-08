@@ -336,25 +336,23 @@ def main():
     df_tracks = df_tracks[df_tracks["genre_top"].isin(valid_genres)]
     print("After removing classes with <2 samples, we have:", df_tracks["genre_top"].value_counts())
 
-    # Reset the index of DataFrame to ensure alignment with valid_indicies later
-    df_tracks = df_tracks.reset_index(drop=True)
-
-    # Reset the index of DataFrame to ensure alignment with valid_indicies later
-    df_tracks = df_tracks.reset_index(drop=True)
-
     # Check for missing audio files and remove entries for missing data
     check_missing_files(df_tracks, track_dir="data/fma_small")
 
     # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
-    X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
 
     # Remove rows with missing values before filtering based on valid indices
     df_tracks.dropna(inplace=True)
 
+    X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
+
     # Use valid_indices to filter the original DataFrame to include only valid data
     df_tracks = df_tracks.iloc[valid_indices]
     y = df_tracks["genre_top"].values
+
+    # Reset the index of DataFrame to ensure alignment with valid_indicies later
+    df_tracks = df_tracks.reset_index(drop=True)
 
     # Handle cases where no features or lables are extracted
     if len(X) == 0 or len(y) == 0:
@@ -376,7 +374,7 @@ def main():
     # Reference: https://realpython.com/train-test-split-python-data/
     # Split the data into 70% training, 20% validation, and 10% test
     # First, we split into 70% training and 30% temporary set (which we will split further into validation and test)
-    X_train, X_temp, y_train, y_temp, df_train, df_temp = train_test_split(
+    X_train, X_temp, y_train, y_temp = train_test_split(
         X,                      # Features
         y_encoded,              # Labels
         df_tracks,              # DataFrame with metadata
@@ -387,10 +385,9 @@ def main():
     )
 
     # Now split the temporary set (30%) into validation (20%) and test (10%) sets
-    X_val, X_test, y_val, y_test, df_val, df_test = train_test_split(
+    X_val, X_test, y_val, y_test = train_test_split(
         X_temp,                 # Temporary features (30%)
         y_temp,                 # Temporary labels (30%)
-        df_temp,                # Temporary metadata (30%)
         test_size=0.33,         # 33% of the temporary data for the test set (approximately 10% of total data)
         random_state=42,        # Set a seed for random number generation
         stratify=y_temp         # Ensures that the distribution of classes is 
@@ -426,7 +423,6 @@ def main():
         'bootstrap': [True, False]
     }
 
-
     # Create an instance of a Random Forest classifier
     # Uses mutiple decision trees to perform classification tasks
     # n_estimators
@@ -450,7 +446,7 @@ def main():
         param_grid=param_grid,
         cv=3,
         scoring='accuracy',
-        n_jobs=1,  # Temporarily disable parallelism (set n_jobs=1)
+        n_jobs= -1,  
         verbose=2
     )
 
@@ -458,7 +454,7 @@ def main():
     class_counts = pd.Series(y_train).value_counts()
     min_class_samples = class_counts.min()
 
-    if min_class_samples <= 1:
+    if min_class_samples < 2:
         print(f"Not enough samples for SMOTE (Minimum class samples: {min_class_samples}). Exiting...")
         return
 
@@ -492,6 +488,11 @@ def main():
     model_filename = "random_forest_genre_classifier.joblib"
     dump(best_clf, model_filename)
     print(f"Trained model saved to {model_filename}.")
+
+    print("Evaluating on validation set...")
+    y_val_pred = best_clf.predict(X_val_scaled)
+    print("Validation Classification Report:")
+    print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_))
 
     print("Evaluating...")
 
