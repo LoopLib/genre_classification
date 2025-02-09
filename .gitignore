@@ -12,3 +12,5 @@ __pycache__/
 # Ignore fma_large and fma_small directories
 fma_large/
 fma_small/
+
+random_forest_genre_classifier.joblib

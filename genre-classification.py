@@ -25,6 +25,9 @@ from sklearn.metrics import classification_report, confusion_matrix
 # Random Forest model for classification
 from sklearn.ensemble import RandomForestClassifier
 
+# Importing GridSearchCV for hyperparameter tuning
+from sklearn.model_selection import GridSearchCV
+
 # Used to display progress bars during iterative processes
 from tqdm import tqdm
 
@@ -325,15 +328,15 @@ def main():
     # Reset the index of DataFrame to ensure alignment with valid_indicies later
     df_tracks = df_tracks.reset_index(drop=True)
 
+    # Remove rows with missing values before filtering based on valid indices
+    df_tracks.dropna(inplace=True)
+
     # Check for missing audio files and remove entries for missing data
     check_missing_files(df_tracks, track_dir="data/fma_small")
 
     # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
     X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
-
-    # Remove rows with missing values before filtering based on valid indices
-    df_tracks.dropna(inplace=True)
 
     # Use valid_indices to filter the original DataFrame to include only valid data
     df_tracks = df_tracks.iloc[valid_indices]
@@ -428,28 +431,17 @@ def main():
     print("\nEvaluating on the validation set...")
     y_val_pred = clf.predict(X_val_scaled)
     print("Validation Classification Report:")
-    print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_))
+    print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_, zero_division=0))
     print("Validation Confusion Matrix:")
     print(confusion_matrix(y_val, y_val_pred))
 
-    # Evaluate on the test set
-    print("\nEvaluating on the test set...")
-    y_test_pred = clf.predict(X_test_scaled)
     print("Test Classification Report:")
-    print(classification_report(y_test, y_test_pred, target_names=label_enc.classes_))
+    print(classification_report(y_test, y_test_pred, target_names=label_enc.classes_, zero_division=0))
     print("Test Confusion Matrix:")
     print(confusion_matrix(y_test, y_test_pred))
 
-    # Print classification metrics
-    print("Classification Report:")
-    print(classification_report(y_test, y_pred, target_names=label_enc.classes_))
-
-    # Print confusion matric to evaluate the classifier performance
-    print("Confusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
-
     # === INVERSE TRANSFORM to get string labels ===
-    predicted_labels = label_enc.inverse_transform(y_pred)
+    predicted_labels = label_enc.inverse_transform(y_test_pred)
     actual_labels = label_enc.inverse_transform(y_test)
 
     # === Store in df_test ===
@@ -461,7 +453,8 @@ def main():
         file.write("\nSample of Test Predictions vs Actual:\n")
         for idx, row in df_test.iterrows():
             file.write(f"Path: {row['path']} | Actual: {row['actual_genre']} | Predicted: {row['predicted_genre']}\n")
-        print("Done.")
+    
+    print("Done.")
 
 if __name__ == "__main__":
     main()
