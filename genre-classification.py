@@ -328,7 +328,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(100)
+    # df_tracks = df_tracks.head(100)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -347,8 +347,11 @@ def main():
 
     X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
 
+    valid_indices = [i for i in valid_indices if i < len(df_tracks)]
+
     # Use valid_indices to filter the original DataFrame to include only valid data
-    df_tracks = df_tracks.iloc[valid_indices]
+    df_tracks = df_tracks.iloc[valid_indices].reset_index(drop=True)
+
     y = df_tracks["genre_top"].values
 
     # Reset the index of DataFrame to ensure alignment with valid_indicies later
@@ -446,7 +449,7 @@ def main():
         param_grid=param_grid,
         cv=3,
         scoring='accuracy',
-        n_jobs= -1,  
+        n_jobs= 1,  
         verbose=2
     )
 
@@ -468,7 +471,7 @@ def main():
         y_train = y_train[mask]
 
     # Apply SMOTE with adjusted k_neighbors
-    smote = SMOTE(sampling_strategy="auto", random_state=42, k_neighbors=min(5, min_class_samples - 1))
+    smote = SMOTE(sampling_strategy="auto", random_state=42, k_neighbors=k_neighbors)
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
 
 
