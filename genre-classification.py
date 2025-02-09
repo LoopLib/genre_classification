@@ -31,17 +31,6 @@ from tqdm import tqdm
 # For saving (dump) and loading (load) Python objects, e.g., trained models
 from joblib import dump, load  # Import joblib for model persistence
 
-from sklearn.model_selection import GridSearchCV
-
-from imblearn.over_sampling import SMOTE
-
-import threadpoolctl
-
-from sklearn.preprocessing import RobustScaler
-
-# Limit the number of threads used by BLAS (used by libraries like numpy and scipy)
-threadpoolctl.threadpool_limits(limits=4, user_api='blas')
-
 ###############################################################################
 
 # Silence certain user warning from librosa to keep the console output cleaner
@@ -112,13 +101,13 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 # Rows = Number of MFCCs (n_mfcc)
                 # Columns = Number of frames in the audio file
             # Reference: https://librosa.org/doc/main/generated/librosa.feature.mfcc.html
-            mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
+            mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc)
 
-            # --- MFCC and its derivatives ---
             # This operation computes the time varying MFCC features into a single representative 
             # value (mean) for each coefficient
             # Output is a 1D array of shape (n_mfcc,)
             mfcc_mean = np.mean(mfcc, axis=1)
+
             # Computes standard deviation of the Mel-frequncy cepstral coefficients accross time
             # Used to quantify how much variation exists in each MFCC coefficient over duration
             # of the audio signal
@@ -131,7 +120,6 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             # Compute the mean of delta MFCCs accors time for each coefficient
             delta_mfcc_std = np.std(delta_mfcc, axis=1)
 
-            # ============= RMS Energy =============
             # Compute the root-mean-square (RMS) energy of the signal, which measures signal amplitude
             rms = librosa.feature.rms(y=y)  
             # Mean RMS value across all frames
@@ -140,6 +128,7 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             rms_std = np.std(rms)
 
             # ============= Spectral Features =============
+
             # Spectral Centroid: indicates the "center of mass" of the spectrum
             spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
             # Mean spectral centroid across all frames
@@ -173,26 +162,22 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             spec_contrast_mean = np.mean(spec_contrast, axis=1)
             spec_contrast_std = np.std(spec_contrast, axis=1)
 
-             # --- Chroma Features ---
+             # ============= Additional Features =============
+            # Chroma features
             chroma = librosa.feature.chroma_stft(y=y, sr=sr)
             chroma_mean = np.mean(chroma, axis=1)
             chroma_std = np.std(chroma, axis=1)
 
-            # --- Tonnetz Features ---
-            # Tonnetz extraction requires a harmonic signal
+            # Tonnetz features computed from the harmonic component
             y_harmonic = librosa.effects.harmonic(y)
             tonnetz = librosa.feature.tonnetz(y=y_harmonic, sr=sr)
             tonnetz_mean = np.mean(tonnetz, axis=1)
             tonnetz_std = np.std(tonnetz, axis=1)
 
-            # --- Tempo ---
-            tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-            # Ensure tempo is a scalar float (avoids 2D array issues)
-            try:
-                tempo = float(tempo[0]) if isinstance(tempo, np.ndarray) else float(tempo)
-            except Exception as e:
-                print(f"Error converting tempo to float for file: {filename} - {e}")
-                tempo = 0.0
+            # Spectral flatness
+            flatness = librosa.feature.spectral_flatness(y=y)
+            flatness_mean = np.mean(flatness)
+            flatness_std = np.std(flatness)
 
             # ============= Combine All Features Into One Row =============
             # Horizontally concatenates 1D arrays into a single 1D array
@@ -210,8 +195,9 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 spec_contrast_mean, spec_contrast_std,
                 chroma_mean, chroma_std,
                 tonnetz_mean, tonnetz_std,
-                [tempo]
+                [flatness_mean, flatness_std]
             ))
+
 
             # Append the feature row to the list of extracted features
                 # Each row corresponds to a single track
@@ -328,7 +314,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    # df_tracks = df_tracks.head(100)
+    df_tracks = df_tracks.head(300)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -336,26 +322,22 @@ def main():
     df_tracks = df_tracks[df_tracks["genre_top"].isin(valid_genres)]
     print("After removing classes with <2 samples, we have:", df_tracks["genre_top"].value_counts())
 
+    # Reset the index of DataFrame to ensure alignment with valid_indicies later
+    df_tracks = df_tracks.reset_index(drop=True)
+
     # Check for missing audio files and remove entries for missing data
     check_missing_files(df_tracks, track_dir="data/fma_small")
 
     # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
+    X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
 
     # Remove rows with missing values before filtering based on valid indices
     df_tracks.dropna(inplace=True)
 
-    X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
-
-    valid_indices = [i for i in valid_indices if i < len(df_tracks)]
-
     # Use valid_indices to filter the original DataFrame to include only valid data
-    df_tracks = df_tracks.iloc[valid_indices].reset_index(drop=True)
-
+    df_tracks = df_tracks.iloc[valid_indices]
     y = df_tracks["genre_top"].values
-
-    # Reset the index of DataFrame to ensure alignment with valid_indicies later
-    df_tracks = df_tracks.reset_index(drop=True)
 
     # Handle cases where no features or lables are extracted
     if len(X) == 0 or len(y) == 0:
@@ -375,31 +357,28 @@ def main():
         # Training set: 80% of the data, used to train the model
         # Test set: 20% of the data, used to evaluate the model's performance
     # Reference: https://realpython.com/train-test-split-python-data/
-    # Split the data into 70% training, 20% validation, and 10% test
-    # First, we split into 70% training and 30% temporary set (which we will split further into validation and test)
-    X_train, X_temp, y_train, y_temp = train_test_split(
+    X_train, X_temp, y_train, y_temp, df_train, df_temp = train_test_split(
         X,                      # Features
         y_encoded,              # Labels
         df_tracks,              # DataFrame with metadata
-        test_size=0.3,          # 30% of the data is used for temporary validation+test split
+        test_size=0.3,          # 20% of the data is used for testing
         random_state=42,        # Set a seed for random number generation
         stratify=y_encoded      # Ensures that the distribution of classes is 
-                                # similar in both training and temp sets
+                                # similar in both training and test sets
     )
 
-    # Now split the temporary set (30%) into validation (20%) and test (10%) sets
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_temp,                 # Temporary features (30%)
-        y_temp,                 # Temporary labels (30%)
-        test_size=0.33,         # 33% of the temporary data for the test set (approximately 10% of total data)
-        random_state=42,        # Set a seed for random number generation
-        stratify=y_temp         # Ensures that the distribution of classes is 
-                                # similar in both validation and test sets
+    X_val, X_test, y_val, y_test, df_val, df_test = train_test_split(
+        X_temp,
+        y_temp, 
+        df_temp, 
+        test_size=1/3, 
+        random_state=42, 
+        stratify=y_temp
     )
 
     # Initializxe the scaler to standarize the features in dataset
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.preprocessing.StandardScaler.html
-    scaler = RobustScaler()
+    scaler = StandardScaler()
 
     # fit_transform
         # fit - Computes the mean and standard deviation of each feature from the training data
@@ -407,24 +386,14 @@ def main():
     # The result contains the scaled versiom of the training data (X_train_scaled)
     X_train_scaled = scaler.fit_transform(X_train)
 
+    X_val_scaled = scaler.transform(X_val)
+
     # transform - Uses the same mean and standard deviation computed from the training data
     # to scale the test data (X_test)
     # This ensures consistency between training and test data
     X_test_scaled = scaler.transform(X_test)
 
-    X_val_scaled = scaler.transform(X_val)
-
-    print("Starting GridSearchCV for RandomForestClassifier...")
-
-    # Define the parameter grid for hyperparameter tuning
-    param_grid = {
-        'n_estimators': [100, 300, 500],
-        'max_depth': [None, 10, 30, 50],
-        'min_samples_split': [2, 5, 10],
-        'min_samples_leaf': [1, 2, 4],
-        'max_features': ['sqrt', 'log2'],
-        'bootstrap': [True, False]
-    }
+    print("Training RandomForestClassifier...")
 
     # Create an instance of a Random Forest classifier
     # Uses mutiple decision trees to perform classification tasks
@@ -441,66 +410,35 @@ def main():
         # Adjusts the weights of the classes to balance the dataset
         # Helps to improve the model's performance on imbalanced datasets
     # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-    base_clf = RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced")
+    clf = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1, class_weight="balanced")
 
-    # Set up GridSearchCV with 3-fold cross-validation
-    grid_search = GridSearchCV(
-        estimator=base_clf,
-        param_grid=param_grid,
-        cv=3,
-        scoring='accuracy',
-        n_jobs= 1,  
-        verbose=2
-    )
-
-    # Check class distribution
-    class_counts = pd.Series(y_train).value_counts()
-    min_class_samples = class_counts.min()
-
-    if min_class_samples < 2:
-        print(f"Not enough samples for SMOTE (Minimum class samples: {min_class_samples}). Exiting...")
-        return
-
-    k_neighbors = min(5, min_class_samples - 1)
-
-    # Check for NaN or Infinite values before applying SMOTE
-    if np.isnan(X_train_scaled).any() or np.isinf(X_train_scaled).any():
-        print("NaN or infinite values detected. Removing problematic samples.")
-        mask = ~np.isnan(X_train_scaled).any(axis=1) & ~np.isinf(X_train_scaled).any(axis=1)
-        X_train_scaled = X_train_scaled[mask]
-        y_train = y_train[mask]
-
-    # Apply SMOTE with adjusted k_neighbors
-    smote = SMOTE(sampling_strategy="auto", random_state=42, k_neighbors=k_neighbors)
-    X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
-
-
-    print("SMOTE applied successfully.")
-
-    print(pd.Series(y_train_balanced).value_counts())
-    # Perform grid search on the balanced training data
-    grid_search.fit(X_train_balanced, y_train_balanced)
-
-    print("Best parameters found:", grid_search.best_params_)
-    print("Best cross-validation accuracy: {:.2f}%".format(grid_search.best_score_ * 100))
-
-    # Retrieve the best estimator from grid search
-    best_clf = grid_search.best_estimator_
+    # Fits the Random Forest model using provided training data
+    # X_train_scaled
+        # Represents the scaled features of the training dataset
+    # y_train
+        # Represents the target labels for the training data.
+    clf.fit(X_train_scaled, y_train)
 
     # Save the trained model
     model_filename = "random_forest_genre_classifier.joblib"
-    dump(best_clf, model_filename)
+    dump(clf, model_filename)
     print(f"Trained model saved to {model_filename}.")
 
-    print("Evaluating on validation set...")
-    y_val_pred = best_clf.predict(X_val_scaled)
+    # Evaluate on the validation set
+    print("\nEvaluating on the validation set...")
+    y_val_pred = clf.predict(X_val_scaled)
     print("Validation Classification Report:")
     print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_))
+    print("Validation Confusion Matrix:")
+    print(confusion_matrix(y_val, y_val_pred))
 
-    print("Evaluating...")
-
-    # Genre predictions on the test set
-    y_pred = best_clf.predict(X_test_scaled)
+    # Evaluate on the test set
+    print("\nEvaluating on the test set...")
+    y_test_pred = clf.predict(X_test_scaled)
+    print("Test Classification Report:")
+    print(classification_report(y_test, y_test_pred, target_names=label_enc.classes_))
+    print("Test Confusion Matrix:")
+    print(confusion_matrix(y_test, y_test_pred))
 
     # Print classification metrics
     print("Classification Report:")
