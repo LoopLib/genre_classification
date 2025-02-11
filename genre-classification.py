@@ -43,7 +43,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
 
 ###############################################################################
 
-def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
+def feature_extraction(df, n_mfcc=20, track_dir="data/fma_small"):
     """
     Extract features from audio files based on the paths given in df.
     Args:
@@ -129,7 +129,6 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
             rms_std = np.std(rms)
 
             # ============= Spectral Features =============
-
             # Spectral Centroid: indicates the "center of mass" of the spectrum
             spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
             # Mean spectral centroid across all frames
@@ -198,7 +197,6 @@ def feature_engineering(df, n_mfcc=20, track_dir="data/fma_small"):
                 tonnetz_mean, tonnetz_std,
                 [flatness_mean, flatness_std]
             ))
-
 
             # Append the feature row to the list of extracted features
                 # Each row corresponds to a single track
@@ -315,7 +313,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    df_tracks = df_tracks.head(300)
+    # df_tracks = df_tracks.head(300)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -334,7 +332,7 @@ def main():
 
     # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
-    X, valid_indices = feature_engineering(df_tracks, n_mfcc=20, track_dir=audio_dir)
+    X, valid_indices = feature_extraction(df_tracks, n_mfcc=40, track_dir=audio_dir)
 
     # Use valid_indices to filter the original DataFrame to include only valid data
     df_tracks = df_tracks.iloc[valid_indices]
@@ -427,12 +425,14 @@ def main():
 
     # Evaluate on the validation set
     print("\nEvaluating on the validation set...")
+
     y_val_pred = clf.predict(X_val_scaled)
     print("Validation Classification Report:")
     print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_, zero_division=0))
     print("Validation Confusion Matrix:")
     print(confusion_matrix(y_val, y_val_pred))
 
+    y_test_pred = clf.predict(X_test_scaled)
     print("Test Classification Report:")
     print(classification_report(y_test, y_test_pred, target_names=label_enc.classes_, zero_division=0))
     print("Test Confusion Matrix:")
