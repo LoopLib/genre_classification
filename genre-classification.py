@@ -25,12 +25,16 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.ensemble import RandomForestClassifier
 # Importing GridSearchCV for hyperparameter tuning
 from sklearn.model_selection import GridSearchCV
+# Importing pipeline
+from sklearn.pipeline import Pipeline
 
 # UTILITIES
 # Used to display progress bars during iterative processes
 from tqdm import tqdm
 # For saving (dump) and loading (load) Python objects, e.g., trained models
 from joblib import dump, load  # Import joblib for model persistence
+
+
 
 ###############################################################################
 
@@ -375,62 +379,37 @@ def main():
         stratify=y_temp
     )
 
-    # Initializxe the scaler to standarize the features in dataset
-    # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.preprocessing.StandardScaler.html
-    scaler = StandardScaler()
-
-    # fit_transform
-        # fit - Computes the mean and standard deviation of each feature from the training data
-        # transform - Scales the training data using the computed mean and standard deviation
-    # The result contains the scaled versiom of the training data (X_train_scaled)
-    X_train_scaled = scaler.fit_transform(X_train)
-
-    X_val_scaled = scaler.transform(X_val)
-
-    # transform - Uses the same mean and standard deviation computed from the training data
-    # to scale the test data (X_test)
-    # This ensures consistency between training and test data
-    X_test_scaled = scaler.transform(X_test)
-
     print("Optimizing RandomForestClassifier with GridSearchCV...")
 
+    # Create a pipeline that includes scaling and classification.
+    pipeline = Pipeline([
+         ('scaler', StandardScaler()),
+         ('clf', RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced"))
+    ])
+
     param_grid = {
-    'n_estimators': [300, 500, 700],
-    'max_depth': [None, 20, 30, 40],
-    'min_samples_split': [2, 5, 10],
-    'min_samples_leaf': [1, 2, 4],
-    'max_features': ['sqrt', 'log2']
+         'clf__n_estimators': [500, 750, 1000],
+         'clf__max_depth': [None, 20, 30, 40, 50],
+         'clf__min_samples_split': [2, 5],
+         'clf__min_samples_leaf': [1, 2],
+         'clf__max_features': ['sqrt', 'log2', None],
+         'clf__criterion': ['gini', 'entropy']
     }
 
     # Initialize GridSearchCV with a RandomForestClassifier
     grid_search = GridSearchCV(
-        # Create an instance of a Random Forest classifier
-        # Uses mutiple decision trees to perform classification tasks
-        # n_estimators
-            # The number of trees in the forest
-            # The higher the number of trees, the better the model performance
-        # random_state
-            # Sets a seed for random number generatio to ensure reproducibility of results
-            # Ensures consistent results when the code is run mutiple times
-        # n_jobs
-            # Allowing classifier to use all avaiavle CPU cores for parallel computation,
-            # speeding up the training process
-        # class_weight = "balanced"
-            # Adjusts the weights of the classes to balance the dataset
-            # Helps to improve the model's performance on imbalanced datasets
-        # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-        estimator=RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced"),
+        estimator=pipeline,
         param_grid=param_grid,
-        cv=3,
+        cv=5,
         scoring='accuracy',
         n_jobs=-1
     )
 
-    # Fit grid search on the scaled training data
-    grid_search.fit(X_train_scaled, y_train)
+    # Fit grid search on the unscaled training data (scaling is done inside the pipeline).
+    grid_search.fit(X_train, y_train)
     print("Best parameters found: ", grid_search.best_params_)
 
-    # Use the best estimator from grid search for predictions
+    # Use the best estimator from grid search.
     clf = grid_search.best_estimator_
 
     # Save the trained model
@@ -441,13 +420,13 @@ def main():
     # Evaluate on the validation set
     print("\nEvaluating on the validation set...")
 
-    y_val_pred = clf.predict(X_val_scaled)
+    y_val_pred = clf.predict(X_val)
     print("Validation Classification Report:")
     print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_, zero_division=0))
     print("Validation Confusion Matrix:")
     print(confusion_matrix(y_val, y_val_pred))
 
-    y_test_pred = clf.predict(X_test_scaled)
+    y_test_pred = clf.predict(X_test)
     print("Test Classification Report:")
     print(classification_report(y_test, y_test_pred, target_names=label_enc.classes_, zero_division=0))
     print("Test Confusion Matrix:")
