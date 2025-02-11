@@ -392,31 +392,46 @@ def main():
     # This ensures consistency between training and test data
     X_test_scaled = scaler.transform(X_test)
 
-    print("Training RandomForestClassifier...")
+    print("Optimizing RandomForestClassifier with GridSearchCV...")
 
-    # Create an instance of a Random Forest classifier
-    # Uses mutiple decision trees to perform classification tasks
-    # n_estimators
-        # The number of trees in the forest
-        # The higher the number of trees, the better the model performance
-    # random_state
-        # Sets a seed for random number generatio to ensure reproducibility of results
-        # Ensures consistent results when the code is run mutiple times
-    # n_jobs
-        # Allowing classifier to use all avaiavle CPU cores for parallel computation,
-        # speeding up the training process
-    # class_weight = "balanced"
-        # Adjusts the weights of the classes to balance the dataset
-        # Helps to improve the model's performance on imbalanced datasets
-    # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-    clf = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1, class_weight="balanced")
+    param_grid = {
+    'n_estimators': [300, 500, 700],
+    'max_depth': [None, 20, 30, 40],
+    'min_samples_split': [2, 5, 10],
+    'min_samples_leaf': [1, 2, 4],
+    'max_features': ['sqrt', 'log2']
+    }
 
-    # Fits the Random Forest model using provided training data
-    # X_train_scaled
-        # Represents the scaled features of the training dataset
-    # y_train
-        # Represents the target labels for the training data.
-    clf.fit(X_train_scaled, y_train)
+    # Initialize GridSearchCV with a RandomForestClassifier
+    grid_search = GridSearchCV(
+        # Create an instance of a Random Forest classifier
+        # Uses mutiple decision trees to perform classification tasks
+        # n_estimators
+            # The number of trees in the forest
+            # The higher the number of trees, the better the model performance
+        # random_state
+            # Sets a seed for random number generatio to ensure reproducibility of results
+            # Ensures consistent results when the code is run mutiple times
+        # n_jobs
+            # Allowing classifier to use all avaiavle CPU cores for parallel computation,
+            # speeding up the training process
+        # class_weight = "balanced"
+            # Adjusts the weights of the classes to balance the dataset
+            # Helps to improve the model's performance on imbalanced datasets
+        # Reference: https://scikit-learn.org/1.6/modules/generated/sklearn.ensemble.RandomForestClassifier.html
+        estimator=RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced"),
+        param_grid=param_grid,
+        cv=3,
+        scoring='accuracy',
+        n_jobs=-1
+    )
+
+    # Fit grid search on the scaled training data
+    grid_search.fit(X_train_scaled, y_train)
+    print("Best parameters found: ", grid_search.best_params_)
+
+    # Use the best estimator from grid search for predictions
+    clf = grid_search.best_estimator_
 
     # Save the trained model
     model_filename = "random_forest_genre_classifier.joblib"
