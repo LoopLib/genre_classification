@@ -254,8 +254,8 @@ def main():
     grid_search = RandomizedSearchCV(
         estimator=pipeline,
         param_distributions=param_grid,
-        n_iter=2,  
-        cv=3,  # Reduce cross-validation folds
+        n_iter=20,  
+        cv=5,  
         scoring='accuracy',
         n_jobs=-1,
         random_state=42
