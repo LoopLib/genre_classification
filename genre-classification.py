@@ -6,7 +6,7 @@ import warnings
 
 # DATA PROCESSING 
 # Package for scientific computing with Python (arrays and mathematical functions)
-import numpy as np
+import numpy as np 
 # Used for data manipulation and analysis (DataFrame structure)
 import pandas as pd
 
@@ -23,8 +23,8 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix
 # Random Forest model for classification
 from sklearn.ensemble import RandomForestClassifier
-# Importing GridSearchCV for hyperparameter tuning
-from sklearn.model_selection import GridSearchCV
+# Importing RandomizedSearchCV for hyperparameter tuning
+from sklearn.model_selection import RandomizedSearchCV
 # Importing pipeline
 from sklearn.pipeline import Pipeline
 # Import PCA to help reduce feature dimensionality
@@ -318,7 +318,7 @@ def main():
     print(f"Loaded {len(df_tracks)} tracks for subset='{subset}'")
 
     # Only first X tracks for faster testing
-    # df_tracks = df_tracks.head(150)
+    # df_tracks = df_tracks.head(300)
 
     # Remove genres with fewer than 2 samples to avoid imbalance issues
     counts = df_tracks["genre_top"].value_counts()
@@ -385,26 +385,29 @@ def main():
     # Create a pipeline that includes scaling and classification.
     pipeline = Pipeline([
         ('scaler', StandardScaler()),
-        ('pca', PCA(n_components=0.95)),  # Keep 95% of variance; can be tuned
+        ('pca', PCA(n_components=0.90)),  # Keep 95% of variance; can be tuned
         ('clf', RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced"))
     ])
 
     param_grid = {
-        'pca__n_components': [0.90, 0.95, 0.99],
-        'clf__n_estimators': [500, 750, 1000],
-        'clf__max_depth': [None, 20, 30, 40, 50],
-        'clf__min_samples_split': [2, 5],
-        'clf__min_samples_leaf': [1, 2],
-        'clf__max_features': ['sqrt', 'log2', None],
-        'clf__criterion': ['gini', 'entropy']
+        'pca__n_components': [0.95],  # Only one value instead of 3
+        'clf__n_estimators': [500],  # Reduce number of trees
+        'clf__max_depth': [None, 30],  # Limit depth
+        'clf__min_samples_split': [5],  # Reduce options
+        'clf__min_samples_leaf': [2],  # Reduce options
+        'clf__max_features': ['sqrt'],  # Single value instead of 3
+        'clf__criterion': ['gini']  # Only 'gini' instead of 'entropy'
     }
+
     # Initialize GridSearchCV with a RandomForestClassifier
-    grid_search = GridSearchCV(
+    grid_search = RandomizedSearchCV(
         estimator=pipeline,
-        param_grid=param_grid,
-        cv=5,
+        param_distributions=param_grid,
+        n_iter=10,  # Try only 10 random combinations instead of all
+        cv=3,  # Reduce cross-validation folds
         scoring='accuracy',
-        n_jobs=-1
+        n_jobs=-1,
+        random_state=42
     )
 
     # Fit grid search on the unscaled training data (scaling is done inside the pipeline).
