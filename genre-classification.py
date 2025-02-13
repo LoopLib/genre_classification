@@ -163,7 +163,7 @@ def main():
     # Check for missing audio files and remove entries for missing data
     check_missing_files(df_tracks, track_dir="data/fma_small")
 
-    # Extract audio features (MFCCs) for the chosen subset
+    ''' # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
     X, valid_indices = feature_extraction(df_tracks, n_mfcc=40, track_dir=audio_dir)
 
@@ -175,6 +175,29 @@ def main():
     if len(X) == 0 or len(y) == 0:
         print("No valid features or labels available. Exiting...")
         return
+    ''' 
+
+    # Instead of extracting audio features (MFCCs) for the chosen subset using feature_extraction,
+    # load precomputed features from CSV file.
+    features_path = os.path.join("data/fma_metadata", "features.csv")
+    # Load features.csv with low_memory=False and treat the first column as the index.
+    # Then reset the index and rename it to "track_id" for merging.
+    features_df = pd.read_csv(features_path, low_memory=False)
+    if 'track_id' not in features_df.columns:
+        features_df.rename(columns={features_df.columns[0]: 'track_id'}, inplace=True)
+    # Convert track_id to numeric, coercing errors to NaN, then drop non-numeric rows
+    features_df['track_id'] = pd.to_numeric(features_df['track_id'], errors='coerce')
+    features_df = features_df.dropna(subset=['track_id'])
+    features_df['track_id'] = features_df['track_id'].astype(int)
+
+
+    # Merge the features with the metadata DataFrame based on track_id
+    df_tracks = df_tracks.merge(features_df, on="track_id")
+
+    # Extract feature matrix X by dropping non-feature columns
+    # Assuming features.csv contains feature columns along with 'track_id'
+    X = df_tracks.drop(columns=["track_id", "genre_top", "subset", "path"]).values
+    y = df_tracks["genre_top"].values
 
     # Ensure consistent sizes for feature matrix X and label vector y
     if X.shape[0] != len(y):
@@ -231,7 +254,7 @@ def main():
     grid_search = RandomizedSearchCV(
         estimator=pipeline,
         param_distributions=param_grid,
-        n_iter=10,  # Try only 10 random combinations instead of all
+        n_iter=2,  
         cv=3,  # Reduce cross-validation folds
         scoring='accuracy',
         n_jobs=-1,
