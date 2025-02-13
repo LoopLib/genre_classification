@@ -241,13 +241,13 @@ def main():
     ])
 
     param_grid = {
-        'pca__n_components': [0.95],  # Only one value instead of 3
-        'clf__n_estimators': [500],  # Reduce number of trees
-        'clf__max_depth': [None, 30],  # Limit depth
-        'clf__min_samples_split': [5],  # Reduce options
-        'clf__min_samples_leaf': [2],  # Reduce options
-        'clf__max_features': ['sqrt'],  # Single value instead of 3
-        'clf__criterion': ['gini']  # Only 'gini' instead of 'entropy'
+        'pca__n_components': [0.85, 0.90, 0.95],
+        'clf__n_estimators': [300, 500, 800],
+        'clf__max_depth': [None, 20, 30, 40],
+        'clf__min_samples_split': [2, 5, 10],
+        'clf__min_samples_leaf': [1, 2, 4],
+        'clf__max_features': ['sqrt', 'log2'],
+        'clf__criterion': ['gini', 'entropy']
     }
 
     # Initialize GridSearchCV with a RandomForestClassifier
