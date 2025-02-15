@@ -15,11 +15,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 # For encoding labels and scaling features
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-# For evaluating the model
-
-# UTILITIES
-# Used to display progress bars during iterative processes
-from tqdm import tqdm
 
 # Import feature extraction logic from the separate file
 from feature_extraction import feature_extraction
@@ -28,21 +23,12 @@ from feature_extraction import feature_extraction
 from data_utils import check_missing_files, load_metadata_and_filter
 
 # Import model training functions
-# To use Random Forest, uncomment the next line and comment out the CNN import.
-from models.rf_model import train_rf_model
-# To use CNN, comment out the RF import above and uncomment the line below.
-# from models.cnn_model import train_cnn_model
-
-
+from models.rf import train_rf_model
+from models.cnn import train_cnn_model
 
 # Silence certain user warning from librosa to keep the console output cleaner
 warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
 
-###############################################################################
-
-# Utility functions
-
-###############################################################################
 
 def main():
 
@@ -156,14 +142,12 @@ def main():
     train_rf_model(X_train_scaled, y_train, X_val_scaled, y_val, X_test_scaled, y_test, label_enc, df_test, scaler)
 
     # To train the CNN model:
-    """
     # Reshape for CNN (add channel dimension)
     X_train_cnn = X_train_scaled[..., np.newaxis]
     X_val_cnn = X_val_scaled[..., np.newaxis]
     X_test_cnn = X_test_scaled[..., np.newaxis]
     
     train_cnn_model(X_train_cnn, y_train, X_val_cnn, y_val, X_test_cnn, y_test, label_enc, df_test)
-    """
 
 if __name__ == "__main__":
     main()

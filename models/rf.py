@@ -1,8 +1,51 @@
 # models/rf_model.py
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import (
+    classification_report, confusion_matrix, 
+    accuracy_score, precision_score, recall_score, f1_score
+)
 from joblib import dump
+
+def plot_rf_metrics(y_val, y_val_pred, y_test, y_test_pred):
+    # Compute metrics for validation set
+    val_acc   = accuracy_score(y_val, y_val_pred)
+    val_prec  = precision_score(y_val, y_val_pred, average='weighted', zero_division=0)
+    val_rec   = recall_score(y_val, y_val_pred, average='weighted', zero_division=0)
+    val_f1    = f1_score(y_val, y_val_pred, average='weighted', zero_division=0)
+    
+    # Compute metrics for test set
+    test_acc  = accuracy_score(y_test, y_test_pred)
+    test_prec = precision_score(y_test, y_test_pred, average='weighted', zero_division=0)
+    test_rec  = recall_score(y_test, y_test_pred, average='weighted', zero_division=0)
+    test_f1   = f1_score(y_test, y_test_pred, average='weighted', zero_division=0)
+    
+    metrics = {
+        'Val Accuracy': val_acc,
+        'Test Accuracy': test_acc,
+        'Val Precision': val_prec,
+        'Test Precision': test_prec,
+        'Val Recall': val_rec,
+        'Test Recall': test_rec,
+        'Val F1 Score': val_f1,
+        'Test F1 Score': test_f1,
+    }
+    
+    labels = list(metrics.keys())
+    values = list(metrics.values())
+    
+    plt.figure(figsize=(10, 6))
+    plt.barh(labels, values, color='skyblue')
+    plt.xlabel("Score")
+    plt.title("Random Forest Evaluation Metrics")
+    plt.xlim(0, 1)
+    plt.tight_layout()
+
+    # Export the graph as an image file
+    plt.savefig("rf_model_metrics.png")
+    plt.show()
+
 
 def train_rf_model(X_train, y_train, X_val, y_val, X_test, y_test, label_enc, df_test, scaler):
     print("Training RandomForestClassifier...")
@@ -43,5 +86,8 @@ def train_rf_model(X_train, y_train, X_val, y_val, X_test, y_test, label_enc, df
         for idx, row in df_test.iterrows():
             file.write(f"Path: {row['path']} | Actual: {row['actual_genre']} | Predicted: {row['predicted_genre']}\n")
     
+    # Plot and export evaluation metrics for comparison.
+    plot_rf_metrics(y_val, y_val_pred, y_test, y_test_pred)
+
     print("Random Forest training complete.")
     return clf
