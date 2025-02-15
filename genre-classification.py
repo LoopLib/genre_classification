@@ -85,7 +85,7 @@ def check_missing_files(df, track_dir="data/fma_small"):
         # If no missing files, print confirmation message
         print("All files are present.")
 
-def load_metadata_and_filter(metadata_dir="data/fma_metadata", subset="small"):
+def load_metadata_and_filter(metadata_dir="data/fma_metadata", subset="large"):
     """
     Load tracks.csv from metadata, filter rows for the chosen subset (small or large),
     and return a DataFrame containing track_id, genre, path, etc.
@@ -137,7 +137,7 @@ def load_metadata_and_filter(metadata_dir="data/fma_metadata", subset="small"):
 def main():
 
     # Define the subset of the dataet to process (this project uses small and large)
-    subset = "small"
+    subset = "large"
 
     print(f"Loading metadata for subset='{subset}'...")
 
@@ -161,7 +161,7 @@ def main():
     df_tracks.dropna(inplace=True)
 
     # Check for missing audio files and remove entries for missing data
-    check_missing_files(df_tracks, track_dir="data/fma_small")
+    check_missing_files(df_tracks, track_dir="data/fma_large")
 
     ''' # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
@@ -231,72 +231,41 @@ def main():
         stratify=y_temp
     )
 
-    print("Optimizing RandomForestClassifier with GridSearchCV...")
+    print("Optimizing RandomForestClassifier...")
 
-    # Create a pipeline that includes scaling and classification.
-    pipeline = Pipeline([
-        ('scaler', StandardScaler()),
-        ('pca', PCA(n_components=0.90)),  # Keep 95% of variance; can be tuned
-        ('clf', RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced"))
-    ])
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_val_scaled = scaler.transform(X_val)
+    X_test_scaled = scaler.transform(X_test)
 
-    param_grid = {
-        'pca__n_components': [0.85, 0.90, 0.95],
-        'clf__n_estimators': [300, 500, 800],
-        'clf__max_depth': [None, 20, 30, 40],
-        'clf__min_samples_split': [2, 5, 10],
-        'clf__min_samples_leaf': [1, 2, 4],
-        'clf__max_features': ['sqrt', 'log2'],
-        'clf__criterion': ['gini', 'entropy']
-    }
-
-    # Initialize GridSearchCV with a RandomForestClassifier
-    grid_search = RandomizedSearchCV(
-        estimator=pipeline,
-        param_distributions=param_grid,
-        n_iter=20,  
-        cv=5,  
-        scoring='accuracy',
-        n_jobs=-1,
-        random_state=42
+    clf = RandomForestClassifier(
+        n_estimators=500, max_depth=30, min_samples_split=5, 
+        min_samples_leaf=2, max_features='sqrt', criterion='gini',
+        random_state=42, n_jobs=-1, class_weight="balanced"
     )
-
-    # Fit grid search on the unscaled training data (scaling is done inside the pipeline).
-    grid_search.fit(X_train, y_train)
-    print("Best parameters found: ", grid_search.best_params_)
-
-    # Use the best estimator from grid search.
-    clf = grid_search.best_estimator_
-
-    # Save the trained model
+    
+    clf.fit(X_train_scaled, y_train)
     model_filename = "random_forest_genre_classifier.joblib"
     dump(clf, model_filename)
     print(f"Trained model saved to {model_filename}.")
 
-    # Evaluate on the validation set
-    print("\nEvaluating on the validation set...")
-
-    y_val_pred = clf.predict(X_val)
+    y_val_pred = clf.predict(X_val_scaled)
     print("Validation Classification Report:")
     print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_, zero_division=0))
     print("Validation Confusion Matrix:")
     print(confusion_matrix(y_val, y_val_pred))
 
-    y_test_pred = clf.predict(X_test)
+    y_test_pred = clf.predict(X_test_scaled)
     print("Test Classification Report:")
     print(classification_report(y_test, y_test_pred, target_names=label_enc.classes_, zero_division=0))
     print("Test Confusion Matrix:")
     print(confusion_matrix(y_test, y_test_pred))
 
-    # === INVERSE TRANSFORM to get string labels ===
     predicted_labels = label_enc.inverse_transform(y_test_pred)
     actual_labels = label_enc.inverse_transform(y_test)
-
-    # === Store in df_test ===
     df_test["predicted_genre"] = predicted_labels
     df_test["actual_genre"] = actual_labels
 
-   # === Display each track's actual vs. predicted genre ===
     with open("predictions.txt", "w") as file:
         file.write("\nSample of Test Predictions vs Actual:\n")
         for idx, row in df_test.iterrows():
