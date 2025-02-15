@@ -232,8 +232,7 @@ def main():
         y_temp, 
         df_temp, 
         test_size=1/3, 
-        random_state=42, 
-        stratify=y_temp
+        random_state=42
     )
 
     print("Optimizing RandomForestClassifier...")
@@ -256,7 +255,9 @@ def main():
 
     y_val_pred = clf.predict(X_val_scaled)
     print("Validation Classification Report:")
-    print(classification_report(y_val, y_val_pred, target_names=label_enc.classes_, zero_division=0))
+
+    unique_labels = np.unique(y_val)
+    print(classification_report(y_val, y_val_pred, target_names=label_enc.inverse_transform(unique_labels), zero_division=0))
     print("Validation Confusion Matrix:")
     print(confusion_matrix(y_val, y_val_pred))
 
