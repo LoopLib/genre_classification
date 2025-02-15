@@ -15,7 +15,6 @@ fma_small/
 
 # Ignore the trained models and script
 random_forest_genre_classifier.joblib
-cnn.py
 cnn_genre_classifier.h5
 test.py
 testcnn.py
