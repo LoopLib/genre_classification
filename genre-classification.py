@@ -23,8 +23,12 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix
 # Random Forest model for classification
 from sklearn.ensemble import RandomForestClassifier
-# Importing GridSearchCV for hyperparameter tuning
-from sklearn.model_selection import GridSearchCV
+# Importing RandomizedSearchCV for hyperparameter tuning
+from sklearn.model_selection import RandomizedSearchCV
+# Importing pipeline
+from sklearn.pipeline import Pipeline
+# Import PCA to help reduce feature dimensionality
+from sklearn.decomposition import PCA
 
 # UTILITIES
 # Used to display progress bars during iterative processes
@@ -133,7 +137,7 @@ def load_metadata_and_filter(metadata_dir="data/fma_metadata", subset="large"):
 def main():
 
     # Define the subset of the dataet to process (this project uses small and large)
-    subset = "small"
+    subset = "large"
 
     print(f"Loading metadata for subset='{subset}'...")
 
@@ -159,8 +163,7 @@ def main():
     # Check for missing audio files and remove entries for missing data
     check_missing_files(df_tracks, track_dir="data/fma_large")
 
-    ''' 
-    # Extract audio features (MFCCs) for the chosen subset
+    ''' # Extract audio features (MFCCs) for the chosen subset
     audio_dir = f"data/fma_{subset}"
     X, valid_indices = feature_extraction(df_tracks, n_mfcc=40, track_dir=audio_dir)
 
@@ -239,36 +242,30 @@ def main():
     X_val_scaled = scaler.transform(X_val)
     X_test_scaled = scaler.transform(X_test)
 
-    param_grid = {
-        'n_estimators': [100, 300],
-        'max_depth': [None, 30],
-        'min_samples_split': [2, 5],
-        'min_samples_leaf': [1, 2]
-    }
-
-    rf = RandomForestClassifier(random_state=42, n_jobs=-1, class_weight="balanced")
-    grid_search = GridSearchCV(estimator=rf, param_grid=param_grid, cv=3, n_jobs=-1, verbose=2)
-    grid_search.fit(X_train_scaled, y_train)
-    print("Best parameters found:", grid_search.best_params_)
-
-    best_rf = grid_search.best_estimator_
-    model_filename = "random_forest_genre_classifier_grid_search.joblib"
-    dump(best_rf, model_filename)
+    clf = RandomForestClassifier(
+        n_estimators=500, max_depth=30, min_samples_split=5, 
+        min_samples_leaf=2, max_features='sqrt', criterion='gini',
+        random_state=42, n_jobs=-1, class_weight="balanced"
+    )
+    
+    clf.fit(X_train_scaled, y_train)
+    model_filename = "random_forest_genre_classifier.joblib"
+    dump(clf, model_filename)
     print(f"Trained model saved to {model_filename}.")
 
-    y_val_pred = best_rf.predict(X_val_scaled)
+    y_val_pred = clf.predict(X_val_scaled)
     print("Validation Classification Report:")
+
     unique_labels = np.unique(y_val)
     print(classification_report(y_val, y_val_pred, target_names=label_enc.inverse_transform(unique_labels), zero_division=0))
     print("Validation Confusion Matrix:")
     print(confusion_matrix(y_val, y_val_pred))
 
-    y_test_pred = best_rf.predict(X_test_scaled)
+    y_test_pred = clf.predict(X_test_scaled)
     print("Test Classification Report:")
     print(classification_report(y_test, y_test_pred, target_names=label_enc.classes_, zero_division=0))
     print("Test Confusion Matrix:")
     print(confusion_matrix(y_test, y_test_pred))
-
 
     predicted_labels = label_enc.inverse_transform(y_test_pred)
     actual_labels = label_enc.inverse_transform(y_test)
