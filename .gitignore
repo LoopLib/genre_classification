@@ -18,4 +18,5 @@ random_forest_genre_classifier.joblib
 cnn.py
 cnn_genre_classifier.h5
 test.py
+testcnn.py
 "random_forest_genre_classifier.joblib" 
