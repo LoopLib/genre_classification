@@ -194,6 +194,11 @@ def main():
     # Merge the features with the metadata DataFrame based on track_id
     df_tracks = df_tracks.merge(features_df, on="track_id")
 
+    # Filter out genres that now have fewer than 2 samples after the merge
+    counts_after_merge = df_tracks["genre_top"].value_counts()
+    valid_genres_after_merge = counts_after_merge[counts_after_merge >= 2].index
+    df_tracks = df_tracks[df_tracks["genre_top"].isin(valid_genres_after_merge)]
+
     # Extract feature matrix X by dropping non-feature columns
     # Assuming features.csv contains feature columns along with 'track_id'
     X = df_tracks.drop(columns=["track_id", "genre_top", "subset", "path"]).values
