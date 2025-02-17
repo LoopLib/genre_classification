@@ -19,3 +19,7 @@ cnn_genre_classifier.h5
 test.py
 testcnn.py
 "random_forest_genre_classifier.joblib" 
+
+*.png
+*.joblib
+*.h5
