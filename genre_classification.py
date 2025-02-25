@@ -20,7 +20,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from feature_extraction import feature_extraction
 
 # Import shared utility functions
-from data_utils import check_missing_files, load_metadata_and_filter
+from genre_classification.data_utils import check_missing_files, load_metadata_and_filter
 
 # Import model training functions
 from models.rf import train_rf_model
@@ -140,7 +140,6 @@ def main():
 
     # To train the Random Forest model:
     # train_rf_model(X_train_scaled, y_train, X_val_scaled, y_val, X_test_scaled, y_test, label_enc, df_test, scaler)
-    print("Training Random Forest model finished...")
 
     # To train the CNN model:
     # Reshape for CNN (add channel dimension)
@@ -149,7 +148,6 @@ def main():
     X_test_cnn = X_test_scaled[..., np.newaxis]
     
     train_cnn_model(X_train_cnn, y_train, X_val_cnn, y_val, X_test_cnn, y_test, label_enc, df_test)
-    print("Training CNN model finished...")
 
 if __name__ == "__main__":
     main()
