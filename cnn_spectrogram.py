@@ -17,10 +17,10 @@ TRACKS_CSV = "data/fma_metadata/tracks.csv"
 SPECTROGRAM_DIR = "data/fma_small_spectrograms"  # subfolders: 000, 001, ..., 155
 IMG_SIZE = (128, 128)   # Resize dimension
 BATCH_SIZE = 32
-EPOCHS = 15  # or more if you can
+EPOCHS = 15  
 
 # If you want to limit how many subfolders to process for a quick test:
-MAX_FOLDERS = None  # e.g. 2 or 5 for debugging, or None for all
+MAX_FOLDERS = None 
 
 # -------------------------------------------------------------------
 # 2) LOAD TRACKS.CSV & GET TOP-LEVEL GENRE
