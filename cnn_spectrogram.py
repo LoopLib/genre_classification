@@ -1,143 +1,192 @@
 import os
 import numpy as np
 import pandas as pd
+from PIL import Image
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dense, Dropout
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.preprocessing.image import load_img, img_to_array, ImageDataGenerator
-from tensorflow.keras.applications import EfficientNetB0
+from tensorflow.keras import layers, models
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ReduceLROnPlateau, EarlyStopping, ModelCheckpoint
+from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-from data_utils import load_metadata_and_filter, check_missing_files
+import matplotlib.pyplot as plt
+import time
 
-# Define constants
-IMG_SIZE = (128, 128)  # You can try increasing to (224, 224) if resources allow
+# -------------------------------------------------------------------
+# 1) CONFIG & PATHS
+# -------------------------------------------------------------------
+TRACKS_CSV = "data/fma_metadata/tracks.csv"
+SPECTROGRAM_DIR = "data/fma_small_spectrograms"  # subfolders: 000, 001, ..., 155
+IMG_SIZE = (128, 128)   # Resize dimension
 BATCH_SIZE = 32
-EPOCHS_INITIAL = 10
-EPOCHS_FINE_TUNE = 20
-SPECTROGRAM_DIR = "data/fma_small_spectrograms/"
+EPOCHS = 15  # or more if you can
 
-def load_spectrograms(df_tracks):
-    """Loads spectrogram images based on track IDs and returns image arrays and corresponding labels."""
-    images = []
-    labels = []
-    
-    for _, row in df_tracks.iterrows():
-        track_id = row['track_id']
-        genre = row['genre_top']
-        img_path = os.path.join(SPECTROGRAM_DIR, f"{track_id}.png")
-        
-        if os.path.exists(img_path):
-            img = load_img(img_path, target_size=IMG_SIZE, color_mode='rgb')
-            img_array = img_to_array(img) / 255.0  # Normalize pixel values
+# If you want to limit how many subfolders to process for a quick test:
+MAX_FOLDERS = None  # e.g. 2 or 5 for debugging, or None for all
+
+# -------------------------------------------------------------------
+# 2) LOAD TRACKS.CSV & GET TOP-LEVEL GENRE
+# -------------------------------------------------------------------
+print("[INFO] Loading tracks.csv...")
+tracks_df = pd.read_csv(TRACKS_CSV, header=[0,1], index_col=0)
+df_track = tracks_df['track']  # Sub-DataFrame with columns like 'genre_top'
+
+# Drop tracks that have no top-level genre
+df_track = df_track.dropna(subset=['genre_top'])
+
+# Dictionary: track_id -> top-level genre (string)
+track_to_topgenre = df_track['genre_top'].to_dict()
+
+# Gather all unique top-level genre names
+all_genres = sorted(list(df_track['genre_top'].unique()))
+genre_to_idx = {g: i for i, g in enumerate(all_genres)}
+idx_to_genre = {i: g for g, i in genre_to_idx.items()}
+
+print("[INFO] Found top-level genres:", all_genres)
+
+# -------------------------------------------------------------------
+# 3) LOAD SPECTROGRAM IMAGES & ASSIGN LABELS (WITH DEBUG PRINTS)
+# -------------------------------------------------------------------
+print("[INFO] Scanning spectrogram folders...")
+folders = sorted(os.listdir(SPECTROGRAM_DIR))
+if MAX_FOLDERS is not None:
+    folders = folders[:MAX_FOLDERS]  # limit for quick debugging
+
+images = []
+labels = []
+num_files_total = 0
+
+t0 = time.time()
+for folder_i, folder in enumerate(folders):
+    folder_path = os.path.join(SPECTROGRAM_DIR, folder)
+    if not os.path.isdir(folder_path):
+        continue
+
+    print(f"[DEBUG] Processing folder {folder_i+1}/{len(folders)}: '{folder}'")
+    file_list = os.listdir(folder_path)
+
+    for file_i, fname in enumerate(file_list):
+        if fname.endswith(".png"):
+            # Parse track ID (e.g. "000002.png" -> track_id=2)
+            track_str = fname.replace(".png", "")
+            track_id = int(track_str)
+
+            # If the track isn't in our dictionary or the genre is NaN, skip
+            if track_id not in track_to_topgenre:
+                continue
+            genre_name = track_to_topgenre[track_id]
+            if pd.isna(genre_name):
+                continue
+
+            # Convert genre_name -> label index
+            if genre_name not in genre_to_idx:
+                continue
+            label_idx = genre_to_idx[genre_name]
+
+            # Load the PNG
+            img_path = os.path.join(folder_path, fname)
+            try:
+                img = Image.open(img_path).convert("L")
+            except Exception as e:
+                print(f"[ERROR] Failed to open image {img_path}: {e}")
+                continue
+
+            # Resize & normalize
+            img = img.resize(IMG_SIZE, Image.BICUBIC)
+            img_array = np.array(img, dtype=np.float32) / 255.0
+
             images.append(img_array)
-            labels.append(genre)
-        
-    return np.array(images), np.array(labels)
+            labels.append(label_idx)
 
-def build_efficientnet_model(num_classes):
-    """Builds a transfer learning model using EfficientNetB0."""
-    base_model = EfficientNetB0(weights='imagenet', include_top=False, input_shape=(IMG_SIZE[0], IMG_SIZE[1], 3))
-    base_model.trainable = False  # Freeze the base model initially
-    
-    model = Sequential([
-        base_model,
-        GlobalAveragePooling2D(),
-        Dense(128, activation='relu'),
-        Dropout(0.5),
-        Dense(num_classes, activation='softmax')
+            num_files_total += 1
+
+            # Print a debug update every 500 files
+            if num_files_total % 500 == 0:
+                print(f"[DEBUG]   Processed {num_files_total} spectrograms so far...")
+
+t1 = time.time()
+
+print(f"[INFO] Loaded {num_files_total} spectrograms in total.")
+print(f"[INFO] Elapsed time for loading: {t1 - t0:.2f} seconds")
+
+# Convert to NumPy arrays
+X = np.array(images, dtype=np.float32)  # shape: (N, 128, 128)
+y = np.array(labels, dtype=np.int32)    # shape: (N,)
+
+# -------------------------------------------------------------------
+# 4) PREPARE DATA FOR TRAINING
+# -------------------------------------------------------------------
+num_classes = len(all_genres)
+y_categorical = to_categorical(y, num_classes=num_classes)
+
+# Reshape X to (N, 128, 128, 1)
+X = np.expand_dims(X, axis=-1)
+
+print("[INFO] Splitting into train/test sets...")
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y_categorical, test_size=0.2, random_state=42, stratify=y_categorical
+)
+print("Train set:", X_train.shape, y_train.shape)
+print("Test  set: ", X_test.shape, y_test.shape)
+
+# -------------------------------------------------------------------
+# 5) DEFINE & BUILD A CNN MODEL
+# -------------------------------------------------------------------
+def create_model():
+    model = models.Sequential([
+        layers.Conv2D(32, (3,3), activation='relu', input_shape=(IMG_SIZE[0], IMG_SIZE[1], 1)),
+        layers.MaxPooling2D((2,2)),
+        
+        layers.Conv2D(64, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        
+        layers.Conv2D(128, (3,3), activation='relu'),
+        layers.MaxPooling2D((2,2)),
+        
+        layers.Flatten(),
+        layers.Dense(128, activation='relu'),
+        layers.Dropout(0.5),
+        layers.Dense(num_classes, activation='softmax')
     ])
     
-    model.compile(optimizer=Adam(learning_rate=0.001),
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
+    model.compile(
+        optimizer=Adam(learning_rate=0.001),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
     return model
 
-def fine_tune_model(model):
-    """Fine-tunes the last few layers of the base model."""
-    base_model = model.layers[0]
-    base_model.trainable = True  # Unfreeze the base model
-    
-    # Fine-tune only the last few layers of the base model
-    for layer in base_model.layers[:-4]:
-        layer.trainable = False
-    
-    model.compile(optimizer=Adam(learning_rate=1e-5),  # Lower learning rate for fine-tuning
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
-    return model
+print("[INFO] Creating the CNN model...")
+model = create_model()
+model.summary()
 
-def main():
-    subset = "small"  # Change to 'large' if needed
-    print(f"Loading metadata for subset='{subset}'...")
-    df_tracks = load_metadata_and_filter(metadata_dir="data/fma_metadata", subset=subset)
-    df_tracks.dropna(inplace=True)
-    check_missing_files(df_tracks, track_dir="data/fma_large")
-    
-    # Load spectrogram images and labels
-    X, y = load_spectrograms(df_tracks)
-    
-    if len(X) == 0 or len(y) == 0:
-        print("No valid spectrograms found. Exiting...")
-        return
-    
-    # Encode labels
-    label_enc = LabelEncoder()
-    y_encoded = label_enc.fit_transform(y)
-    y_categorical = to_categorical(y_encoded)
-    
-    # Split data into training, validation, and test sets
-    X_train, X_temp, y_train, y_temp = train_test_split(X, y_categorical, test_size=0.3, random_state=42, stratify=y_categorical)
-    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=1/3, random_state=42)
-    
-    # Data Augmentation
-    datagen = ImageDataGenerator(
-        rotation_range=20,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.2,
-        zoom_range=0.2,
-        horizontal_flip=True,
-        fill_mode='nearest'
-    )
-    datagen.fit(X_train)
-    
-    # Callbacks: learning rate reduction, early stopping, and checkpointing
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.0001)
-    early_stop = EarlyStopping(monitor='val_loss', patience=7, restore_best_weights=True)
-    checkpoint = ModelCheckpoint("efficientnet_genre_classification_best.keras", monitor='val_loss', save_best_only=True)
+# -------------------------------------------------------------------
+# 6) TRAIN THE MODEL
+# -------------------------------------------------------------------
+print("[INFO] Starting training...")
+history = model.fit(
+    X_train, y_train,
+    validation_data=(X_test, y_test),
+    epochs=EPOCHS,
+    batch_size=BATCH_SIZE
+)
 
-    
-    # Build and train the initial model
-    model = build_efficientnet_model(num_classes=y_categorical.shape[1])
-    print("Starting initial training...")
-    history_initial = model.fit(
-        datagen.flow(X_train, y_train, batch_size=BATCH_SIZE),
-        validation_data=(X_val, y_val),
-        epochs=EPOCHS_INITIAL,
-        callbacks=[reduce_lr, early_stop, checkpoint]
-    )
-    
-    # Fine-tune the model
-    model = fine_tune_model(model)
-    print("Starting fine-tuning...")
-    history_finetune = model.fit(
-        datagen.flow(X_train, y_train, batch_size=BATCH_SIZE),
-        validation_data=(X_val, y_val),
-        epochs=EPOCHS_FINE_TUNE,
-        callbacks=[reduce_lr, early_stop, checkpoint]
-    )
-    
-    # Evaluate on the test set
-    test_loss, test_acc = model.evaluate(X_test, y_test)
-    print(f"Test Accuracy: {test_acc:.4f}")
-    
-    # Save final model
-    model.save("efficientnet_genre_classification.h5")
-    print("Final model saved successfully.")
+# -------------------------------------------------------------------
+# 7) EVALUATE & PLOT
+# -------------------------------------------------------------------
+print("[INFO] Evaluating on test set...")
+loss, acc = model.evaluate(X_test, y_test)
+print(f"[RESULT] Test Accuracy: {acc*100:.2f}%")
 
-if __name__ == "__main__":
-    main()
+plt.figure()
+plt.plot(history.history['accuracy'], label='Train Acc')
+plt.plot(history.history['val_accuracy'], label='Val Acc')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Training History')
+plt.legend()
+plt.show()
+
+# -------------------------------------------------------------------
+# 8) SAVE MODEL
+# -------------------------------------------------------------------
+model.save("genre_classification_model.h5")
+print("[INFO] Model saved to genre_classification_model.h5")
