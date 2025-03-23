@@ -76,6 +76,11 @@ def train_rf_model(X_train, y_train, X_val, y_val, X_test, y_test, label_enc, df
     print("Test Confusion Matrix:")
     print(confusion_matrix(y_test, y_test_pred))
 
+    # Save the model
+    dump(clf, "rf.joblib")
+    dump(label_enc, "label_encoder.joblib")
+    dump(scaler, "scaler.joblib")
+
     predicted_labels = label_enc.inverse_transform(y_test_pred)
     actual_labels = label_enc.inverse_transform(y_test)
     df_test["predicted_genre"] = predicted_labels
