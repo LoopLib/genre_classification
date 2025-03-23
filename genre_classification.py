@@ -24,7 +24,7 @@ from genre_classification.data_utils import check_missing_files, load_metadata_a
 
 # Import model training functions
 from models.rf import train_rf_model
-from models.cnn import train_cnn_model
+from genre_classification.models.cnn_features import train_cnn_model
 
 # Silence certain user warning from librosa to keep the console output cleaner
 warnings.filterwarnings("ignore", category=UserWarning, module="librosa")
