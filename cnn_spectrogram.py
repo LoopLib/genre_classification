@@ -9,6 +9,8 @@ from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 import time
+from sklearn.metrics import classification_report
+import numpy as np
 
 # -------------------------------------------------------------------
 # 1) CONFIG & PATHS
@@ -190,3 +192,24 @@ plt.show()
 # -------------------------------------------------------------------
 model.save("genre_classification_model.h5")
 print("[INFO] Model saved to genre_classification_model.h5")
+
+# Predict on test data
+y_pred_probs = model.predict(X_test)
+y_pred = np.argmax(y_pred_probs, axis=1)
+y_true = np.argmax(y_test, axis=1)
+
+# Get the unique class indices in your test labels
+unique_labels = np.unique(y_true)
+
+# Build correct label names for just those present in the data
+correct_target_names = [idx_to_genre[i] for i in unique_labels]
+
+# Classification report with the correct label mapping
+print("[INFO] Classification Report:")
+report = classification_report(
+    y_true,
+    y_pred,
+    labels=unique_labels,
+    target_names=correct_target_names
+)
+print(report)
